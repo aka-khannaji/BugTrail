@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "app/services/order_service.py", line 24, in create_order
+    tx.execute("INSERT INTO orders (id) VALUES (?)", (order_id,))  # retry
+sqlite3.IntegrityError: UNIQUE constraint failed: orders.id: Duplicate entry '42' for key 'orders.id'

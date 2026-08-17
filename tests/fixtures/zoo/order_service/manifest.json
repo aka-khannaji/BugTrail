@@ -1,0 +1,13 @@
+{
+  "name": "order-service-retry",
+  "language": "python",
+  "problem": "Duplicate insert during order retry after a failed transaction",
+  "expected_root_cause": "Add retry handling for failed orders",
+  "stack_trace": "error.txt",
+  "project": {
+    "files": ["app/services/order_service.py"],
+    "database": "sqlite",
+    "runtime": "python"
+  },
+  "notes": "Retry loop resubmits the INSERT without checking whether the original row was already persisted, violating the unique constraint."
+}
