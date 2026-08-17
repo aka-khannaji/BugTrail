@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bugtrail-ai"
+version = "0.1.0"
+description = "Free local AI microservice for BugTrail — hosts a tiny open model behind an OpenAI-compatible API."
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn>=0.30",
+  "huggingface-hub>=0.24",
+]
+
+[project.optional-dependencies]
+model = [
+  "llama-cpp-python>=0.3",
+]
+
+# llama-cpp-python publishes only an sdist on PyPI (needs a C++ compiler).
+# The abetlen CPU wheel index ships a prebuilt `py3-none-win_amd64` wheel, so
+# `uv sync --extra model` installs it with no compiler on Windows.
+[[tool.uv.index]]
+name = "llamacpp"
+url = "https://abetlen.github.io/llama-cpp-python/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+llama-cpp-python = { index = "llamacpp" }
+
+[project.scripts]
+bugtrail-ai = "app.main:run"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+src = ["app"]
