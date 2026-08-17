@@ -1,0 +1,13 @@
+{
+  "name": "order-placement-duplicate",
+  "language": "php",
+  "problem": "Duplicate entry when placing an order that already exists",
+  "expected_root_cause": "Use Eloquent create() for order placement",
+  "stack_trace": "error.txt",
+  "project": {
+    "files": ["var/www/html/app/Services/OrderService.php"],
+    "database": "mysql",
+    "runtime": "laravel"
+  },
+  "notes": "The previous implementation guarded the insert with an exists() check. The refactor switched to Order::create(), which throws a duplicate-entry SQLSTATE when the order was already persisted on a retry. Laravel frames carry the deploy-root path (/var/www/html), so the repo mirrors that layout."
+}

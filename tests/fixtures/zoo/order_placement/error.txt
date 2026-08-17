@@ -1,0 +1,4 @@
+SQLSTATE[23000]: Integrity constraint violation: 1062 Duplicate entry '42' for key 'orders.id' (SQL: insert into `orders` (`id`) values (42))
+#0 /var/www/html/app/Services/OrderService.php(11): App\Services\OrderService->createOrder()
+#1 /var/www/html/app/Http/Controllers/OrderController.php(88): App\Http\Controllers\OrderController->store()
+#2 /var/www/html/routes/web.php(25): Illuminate\Routing\Router->dispatch()

@@ -113,3 +113,90 @@ def test_config_rejects_bad_scope(tmp_path: Path):
     (tmp_path / CONFIG_NAME).write_text('[privacy]\nscope = "everything"\n', encoding="utf-8")
     with pytest.raises(ValueError):
         load_config(tmp_path)
+
+
+def test_merge_commit_is_skipped_by_attach_git(tmp_path: Path):
+    from bugtrail.engines.detective import DetectiveEngine
+    from bugtrail.engines.evidence import EvidenceEngine
+    from bugtrail.evidence.graph import EvidenceGraph
+
+    class MergeGit:
+        available = True
+
+        def recent_commits(self, count=20):
+            return [
+                {
+                    "sha": "fee1deaddd",
+                    "message": "Merge branch 'feature' into main",
+                    "author": "d",
+                    "date": "2026-01-01T00:00:00Z",
+                    "parents": ["p1", "p2"],
+                },
+                {
+                    "sha": "bee1239999",
+                    "message": "fix: real error",
+                    "author": "d",
+                    "date": "2026-01-02T00:00:00Z",
+                    "parents": ["p0"],
+                },
+            ]
+
+        def changed_files(self, sha):
+            if sha.startswith("fee"):
+                return [f"app/components/widget_{i}.jsx" for i in range(60)]
+            return ["app/services/order_service.py"]
+
+        def is_whitespace_only(self, sha):
+            return False
+
+        def blame_line(self, file, line):
+            return None
+
+    graph = EvidenceGraph()
+    EvidenceEngine(tmp_path, MergeGit()).attach_git(graph)
+    hypotheses = DetectiveEngine(MergeGit()).investigate(graph, require_frames=False)
+
+    assert [h.commit_sha for h in hypotheses] == ["bee1239999"]
+    assert not any("widget_" in reason for h in hypotheses for reason in h.reasons)
+
+
+def test_ai_prompt_is_bounded_even_for_large_evidence(tmp_path: Path):
+    from bugtrail.engines.detective import Hypothesis
+    from bugtrail.evidence.graph import EvidenceGraph
+    from bugtrail.evidence.models import Evidence, Frame
+    from bugtrail.investigation.pipeline import MAX_PROMPT_CHARS, _build_ai_prompt
+
+    graph = EvidenceGraph()
+    frames = [
+        Frame(
+            file=f"app/modules/module_{i}/deep/nested/sub/module.py",
+            line=i,
+            fn=f"func_{i}",
+        )
+        for i in range(50)
+    ]
+    exc = Evidence.exception(
+        name="RuntimeError",
+        message="boom" * 5000,
+        frames=frames,
+    )
+    graph.add_exception_with_frames(exc)
+    for i in range(80):
+        graph.add_log("ERROR" if i % 2 else "INFO", f"message {i}", line=i)
+
+    hypotheses = [
+        Hypothesis(
+            commit_sha=f"abcdef0123456789{i:08x}",
+            commit_message=f"fix something {i}" * 30,
+            files=[f"src/{j}/file_{j}.py" for j in range(200)],
+            score=0.9 - i * 0.05,
+            confidence=0.9 - i * 0.05,
+            reasons=[f"reason {i}"],
+            next_steps=["next"],
+        )
+        for i in range(10)
+    ]
+
+    prompt = _build_ai_prompt(graph, hypotheses)
+    assert len(prompt) <= MAX_PROMPT_CHARS + len("\n...[truncated]")
+    assert prompt.endswith("...[truncated]")

@@ -1,0 +1,13 @@
+{
+  "name": "cart-total-empty",
+  "language": "javascript",
+  "problem": "TypeError when computing the total of an empty cart",
+  "expected_root_cause": "Optimize cart total calculation",
+  "stack_trace": "error.txt",
+  "project": {
+    "files": ["app/services/cart_service.js"],
+    "database": "none",
+    "runtime": "node"
+  },
+  "notes": "A 'performance optimization' hoisted the first line item out of the loop. For an empty cart, cart.items[0] is undefined and the property access throws, whereas the old loop handled the empty case by returning 0."
+}

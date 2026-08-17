@@ -55,3 +55,19 @@ def test_weak_evidence_scores_lower():
     by_sha = {h.commit_sha: h for h in hypotheses}
     assert by_sha["bee123"].confidence > by_sha["abc999"].confidence
     assert hypotheses[0].commit_sha == "bee123"
+
+
+def test_merge_commit_is_heavily_penalized():
+    graph = build_graph()
+    merge_node = graph.file_node("app/components/widget.jsx")
+    merge_node.data["commit_strength"] = {"fff999": 0.4}
+    merge_commit = graph.add_commit("fff999", "Merge branch 'feature' into main")
+    merge_commit.data["merge"] = True
+    graph.link(merge_node.id, REL_FILE_MODIFIED_BY, merge_commit.id)
+
+    hypotheses = DetectiveEngine(git=None).investigate(graph, require_frames=False)
+    merge = next(h for h in hypotheses if h.commit_sha == "fff999")
+    assert merge.score < 0.2 * 0.5  # volume no longer wins over real evidence
+    assert any("merge commit" in reason for reason in merge.reasons)
+
+    assert hypotheses[0].commit_sha != "fff999"

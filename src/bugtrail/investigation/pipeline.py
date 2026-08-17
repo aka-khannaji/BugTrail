@@ -13,12 +13,16 @@ from bugtrail.ai.cost import CostLedger, CostRow
 from bugtrail.ai.provider import AIProvider
 from bugtrail.config import BugTrailConfig, load_config
 from bugtrail.engines.detective import DetectiveEngine, Hypothesis
-from bugtrail.engines.evidence import EvidenceEngine
+from bugtrail.engines.evidence import MAX_FILES_SCORED_PER_COMMIT, EvidenceEngine
 from bugtrail.evidence.graph import REL_FILE_MODIFIED_BY, EvidenceGraph
 from bugtrail.investigation.session import InvestigationSession
 from bugtrail.storage import new_session_id
 
 DETERMINISTIC_TASKS = ("stack parsing", "git analysis", "evidence ranking")
+
+# Keep the AI prompt small enough for the bundled 0.5B model (16k ctx) and any
+# small local model. Deterministic ranking never depends on this.
+MAX_PROMPT_CHARS = 7000
 
 SYSTEM_PROMPT = (
     "You are BugTrail, a root-cause investigation assistant for developers. "
@@ -57,11 +61,15 @@ def run_investigation(
             commit = graph.ensure_commit(
                 info["sha"], info["message"], author=info["author"], date=info["date"]
             )
-            for rel in git.changed_files(info["sha"]):
-                node = graph.file_node(rel)
-                strength = node.data.setdefault("commit_strength", {})
-                strength[info["sha"]] = max(strength.get(info["sha"], 0.0), 0.6)
-                graph.link(node.id, REL_FILE_MODIFIED_BY, commit.id)
+            if len(info.get("parents") or []) > 1:
+                commit.data["merge"] = True
+            else:
+                for index, rel in enumerate(git.changed_files(info["sha"])):
+                    node = graph.file_node(rel)
+                    if index < MAX_FILES_SCORED_PER_COMMIT:
+                        strength = node.data.setdefault("commit_strength", {})
+                        strength[info["sha"]] = max(strength.get(info["sha"], 0.0), 0.6)
+                    graph.link(node.id, REL_FILE_MODIFIED_BY, commit.id)
 
     if exc is None and commit_head is None:
         raise ValueError(
@@ -109,26 +117,39 @@ def _build_ai_prompt(graph: EvidenceGraph, hypotheses: list[Hypothesis]) -> str:
     sections: list[str] = ["Evidence:"]
     for exception in graph.exceptions():
         sections.append(f"- {exception.data['name']}: {exception.data['message']}")
-        for raw in exception.data.get("frames", []):
+        for raw in exception.data.get("frames", [])[:15]:
             sections.append(f"    at {raw['file']}:{raw['line']} -> {raw.get('fn') or ''}".rstrip())
     for node in graph.of_kind("database_query"):
         sections.append(
             f"- Database signal: {node.data.get('description', node.label)}"
         )
+    for node in graph.of_kind("log")[:15]:
+        sections.append(
+            f"- Log [{node.data.get('level')}] line {node.data.get('line')}: "
+            f"{node.data.get('message')}"
+        )
+    for node in graph.of_kind("dependency"):
+        status = "declared" if node.data.get("declared") else "not declared in repo manifests"
+        sections.append(f"- Dependency signal: {node.data.get('name')} ({status})")
 
     sections.append("")
     sections.append("Suspected root causes (deterministic ranking):")
     for index, hypothesis in enumerate(hypotheses[:5], start=1):
+        files = ", ".join(hypothesis.files[:5])
         sections.append(
-            f"{index}. commit {hypothesis.commit_sha[:10]} '{hypothesis.commit_message}' "
-            f"confidence={hypothesis.confidence} files={','.join(hypothesis.files)}"
+            f"{index}. commit {hypothesis.commit_sha[:10]} "
+            f"'{hypothesis.commit_message[:80]}' "
+            f"confidence={hypothesis.confidence} files={files}"
         )
     sections.append("")
     sections.append(
         "Task: is the top cause consistent with the evidence? If another listed cause "
         "fits better, say so. Reply with the best commit sha then a short justification."
     )
-    return "\n".join(sections)
+    prompt = "\n".join(sections)
+    if len(prompt) > MAX_PROMPT_CHARS:
+        prompt = prompt[:MAX_PROMPT_CHARS] + "\n...[truncated]"
+    return prompt
 
 
 def _maybe_rerank(hypotheses: list[Hypothesis], ai_text: str) -> list[Hypothesis]:

@@ -46,7 +46,7 @@ class GitAdapter:
         out = self._git(
             "log",
             f"-{count}",
-            "--pretty=format:%H%x1f%s%x1f%an%x1f%aI",
+            "--pretty=format:%H%x1f%s%x1f%an%x1f%aI%x1f%P",
         )
         return [self._parse_commit(line) for line in out.splitlines() if line]
 
@@ -96,7 +96,27 @@ class GitAdapter:
             out = ""
         return out
 
+    def is_whitespace_only(self, sha: str) -> bool:
+        """True when the commit changes no non-whitespace content.
+
+        A cosmetic reformat (indentation, trailing whitespace) that a later
+        commit applied to a frame line would otherwise shadow the commit that
+        actually introduced the buggy code.
+        """
+        try:
+            plain = self._git("diff", "--numstat", f"{sha}~1", sha)
+            ignoring_ws = self._git("diff", "-w", "--numstat", f"{sha}~1", sha)
+        except RuntimeError:
+            return False
+        return bool(plain.strip()) and not ignoring_ws.strip()
+
     @staticmethod
     def _parse_commit(line: str) -> dict[str, Any]:
-        sha, subject, author, date = (line.split("\x1f", 3) + ["", "", "", ""])[:4]
-        return {"sha": sha, "message": subject, "author": author, "date": date}
+        sha, subject, author, date, parents = (line.split("\x1f", 4) + ["", "", "", "", ""])[:5]
+        return {
+            "sha": sha,
+            "message": subject,
+            "author": author,
+            "date": date,
+            "parents": [p for p in parents.split() if p],
+        }

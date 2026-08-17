@@ -1,0 +1,4 @@
+TypeError: Cannot read properties of undefined (reading 'amount')
+    at applyDiscount (app/services/checkout.js:2:30)
+    at getTotal (app/controllers/checkout_controller.js:31:17)
+    at processRequest (app/server.js:23:9)

@@ -7,6 +7,10 @@ from bugtrail.investigation.session import InvestigationSession
 BAR = "=" * 60
 THIN = "-" * 60
 
+# A commit touching hundreds of files could otherwise drown the report in
+# "changed in commit X" lines. Show a handful, then summarize the rest.
+MAX_REASONS_PER_HYPOTHESIS = 15
+
 
 def render_report(session: InvestigationSession) -> str:
     lines: list[str] = []
@@ -22,12 +26,17 @@ def render_report(session: InvestigationSession) -> str:
     if session.hypotheses:
         top = session.hypotheses[0]
         lines.append("")
-        lines.append("LIKELY ROOT CAUSE")
+        if session.exception:
+            lines.append("LIKELY ROOT CAUSE")
+        else:
+            lines.append("MOST RELEVANT COMMIT")
         lines.append(THIN)
         lines.append(top.commit_message)
         for path in top.files:
             lines.append(f"   {path}")
         lines.append(f"Confidence: {top.confidence * 100:.0f}%")
+        if not session.exception:
+            lines.append("(no error text supplied — this is a change overview, not a root cause)")
 
     lines.append("")
     lines.append("EVIDENCE")
@@ -37,8 +46,14 @@ def render_report(session: InvestigationSession) -> str:
         lines.append(f"{number}. {evidence}")
         number += 1
     for hypothesis in session.hypotheses[:3]:
-        for reason in hypothesis.reasons:
+        for reason in hypothesis.reasons[:MAX_REASONS_PER_HYPOTHESIS]:
             lines.append(f"{number}. {reason}")
+            number += 1
+        remaining = len(hypothesis.reasons) - MAX_REASONS_PER_HYPOTHESIS
+        if remaining > 0:
+            lines.append(
+                f"{number}. +{remaining} more evidence entries for commit {hypothesis.commit_sha[:10]}"
+            )
             number += 1
 
     lines.append("")
@@ -76,6 +91,15 @@ def _evidence_list(session: InvestigationSession) -> list[str]:
             )
         elif kind == "database_query":
             items.append(f"Database: {node.get('label', node.get('data', {}).get('description', ''))}")
+        elif kind == "log":
+            data = node.get("data", {})
+            items.append(
+                f"Log [{data.get('level')}] line {data.get('line')}: {data.get('message')}"
+            )
+        elif kind == "dependency":
+            data = node.get("data", {})
+            status = "declared" if data.get("declared") else "missing from manifests"
+            items.append(f"Dependency: {data.get('name')} ({status})")
     for hypothesis in session.hypotheses[:3]:
         items.append(
             f"Suspicious commit {hypothesis.commit_sha[:10]}: {hypothesis.commit_message}"

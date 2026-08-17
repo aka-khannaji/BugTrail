@@ -1,0 +1,4 @@
+TypeError: Cannot read properties of undefined (reading 'price')
+    at computeTotal (app/services/cart_service.js:2:30)
+    at getCartTotal (app/controllers/cart_controller.js:48:17)
+    at processRequest (app/server.js:23:9)

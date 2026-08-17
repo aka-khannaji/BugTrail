@@ -65,3 +65,15 @@ class Evidence(BaseModel):
     @classmethod
     def database_query(cls, description: str) -> "Evidence":
         return cls(kind=EvidenceKind.DATABASE_QUERY, label=description, data={"description": description})
+
+    @classmethod
+    def log(cls, level: str, message: str, *, line: int = 0, source: str = "") -> "Evidence":
+        data = {"level": level, "message": message, "line": line}
+        if source:
+            data["source"] = source
+        return cls(kind=EvidenceKind.LOG, label=f"{level}: {message[:60]}", data=data)
+
+    @classmethod
+    def dependency(cls, name: str, *, declared: bool = False, manifest: str = "") -> "Evidence":
+        data = {"name": name, "declared": declared, "manifest": manifest}
+        return cls(kind=EvidenceKind.DEPENDENCY, label=name, data=data)

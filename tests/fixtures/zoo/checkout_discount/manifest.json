@@ -1,0 +1,14 @@
+{
+  "name": "checkout-discount-reformat",
+  "language": "javascript",
+  "problem": "TypeError reading 'amount' when the payment gateway returns no discount",
+  "expected_root_cause": "Handle undefined response from payments gateway",
+  "confidence": "medium",
+  "stack_trace": "error.txt",
+  "project": {
+    "files": ["app/services/checkout.js"],
+    "database": "none",
+    "runtime": "node"
+  },
+  "notes": "Subtle case: the culprit commit replaced the discountRate || 0 fallback with payment.response.discount.amount, and a later cosmetic commit ('Reformat checkout with tabs') touched the same line, so raw git blame points at the innocent reformat. Diff analysis detects the whitespace-only commit and drops it (0.15x penalty), letting the true culprit rank first deterministically. Without diff analysis the culprit would only surface via the recent-commit + error-keyword boost."
+}

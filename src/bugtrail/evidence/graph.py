@@ -14,6 +14,17 @@ REL_FILE_MODIFIED_BY = "modified_by"
 REL_COMMIT_CHANGED = "changed"
 REL_FILE_DB = "issued"
 REL_DB_TO_EXCEPTION = "explains"
+REL_LOG_TO_EXCEPTION = "contextualizes"
+REL_DEP_TO_EXCEPTION = "implicates"
+
+
+def _normalize_path(path: str) -> str:
+    """Canonical repo-relative key: forward slashes, no leading separator.
+
+    Keeps frame paths from a stack trace (e.g. Laravel's '/var/www/html/...')
+    and repo-resolved paths (e.g. 'var/www/html/...') on the same file node.
+    """
+    return str(path).replace("\\", "/").lstrip("/")
 
 
 class EvidenceGraph:
@@ -56,9 +67,9 @@ class EvidenceGraph:
         return [n for n in self._nodes.values() if n.id in ids]
 
     def file_node(self, path: str) -> Evidence:
-        key = str(path).replace("\\", "/")
+        key = _normalize_path(path)
         for node in self.of_kind(EvidenceKind.FILE):
-            if node.data.get("path") == key:
+            if _normalize_path(node.data.get("path", "")) == key:
                 return node
         return self.add(Evidence.file(key))
 
@@ -84,7 +95,7 @@ class EvidenceGraph:
             frame = Frame.model_validate(raw)
             file_node = self.file_node(str(frame.file).replace("\\", "/"))
             frames = file_node.data.setdefault("frames", [])
-            entry = {"line": frame.line, "fn": frame.fn}
+            entry = {"file": str(frame.file).replace("\\", "/"), "line": frame.line, "fn": frame.fn}
             if entry not in frames:
                 frames.append(entry)
             self.link(exc.id, REL_EXCEPTION_FRAME, file_node.id)
@@ -95,6 +106,12 @@ class EvidenceGraph:
 
     def add_database_query(self, description: str) -> Evidence:
         return self.add(Evidence.database_query(description))
+
+    def add_log(self, level: str, message: str, *, line: int = 0, source: str = "") -> Evidence:
+        return self.add(Evidence.log(level, message, line=line, source=source))
+
+    def add_dependency(self, name: str, *, declared: bool = False, manifest: str = "") -> Evidence:
+        return self.add(Evidence.dependency(name, declared=declared, manifest=manifest))
 
     def link_file_commit(self, file_path: str, commit_id: str) -> None:
         for n in self.of_kind(EvidenceKind.FILE):

@@ -73,6 +73,13 @@ class DetectiveEngine:
             if matched:
                 entry["score"] += min(0.3, 0.12 * len(matched))
                 entry["reasons"].append(f'Commit message mentions "{", ".join(matched)}"')
+            commit_node = commits.get(sha)
+            if commit_node is not None and commit_node.data.get("cosmetic"):
+                entry["score"] *= 0.15
+                entry["reasons"].append(f"Commit {sha[:10]} is whitespace-only (diff analysis)")
+            if commit_node is not None and commit_node.data.get("merge"):
+                entry["score"] *= 0.05
+                entry["reasons"].append(f"Commit {sha[:10]} is a merge commit (no changes of its own)")
             confidence = 0.0
             if max_score > 0:
                 confidence = round(min(0.99, 0.3 + 0.6 * (entry["score"] / max_score)), 2)
