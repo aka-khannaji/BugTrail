@@ -1,0 +1,56 @@
+name: Investigate new bug reports
+
+# Auto-runs a BugTrail root-cause analysis on every opened issue and posts the
+# ranked evidence as a comment. Deterministic-only unless you configure AI below.
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  investigate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so blame/commit evidence is meaningful
+
+      # Write the issue body to a file for BugTrail to read.
+      - uses: actions/github-script@v7
+        id: body
+        with:
+          result-encoding: string
+          script: |
+            const fs = require('fs');
+            const body = context.payload.issue.body || '';
+            fs.writeFileSync('bugtrail-body.txt', body);
+            return 'ok';
+
+      - uses: OWNER/bugtrail@main
+        id: investigate
+        with:
+          error-file: bugtrail-body.txt
+          # Optional AI (deterministic-only if omitted). Example with Groq:
+          # base-url: https://api.groq.com/openai/v1
+          # model: llama-3.1-8b-instant
+        env:
+          BUGTRAIL_API_KEY: ${{ secrets.BUGTRAIL_API_KEY }}
+
+      - name: Comment with the report
+        uses: actions/github-script@v7
+        env:
+          REPORT: ${{ steps.investigate.outputs.report-path }}
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync(process.env.REPORT, 'utf8');
+            const body = '**BugTrail analysis**\n\n```\n' + report.slice(0, 28000) + '\n```';
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.issue.number,
+              body,
+            });

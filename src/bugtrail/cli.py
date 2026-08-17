@@ -75,14 +75,20 @@ def investigate(
     """Investigate a bug: collect evidence, build a graph, rank root causes."""
     root = _repo_root()
     git = GitAdapter.discover(_cwd())
+    if not git.available:
+        print(
+            "Warning: no Git repository or commit history found — evidence is limited to the trace itself.",
+            file=sys.stderr,
+        )
     error_text = _read_error_text(error)
 
     try:
+        config = load_config(root)
         session = run_investigation(
             repo_root=root,
             error_text=error_text,
             commit_ref=commit,
-            config=load_config(root),
+            config=config,
             git=git or GitAdapter(root),
             allow_ai=not no_ai,
         )
@@ -92,6 +98,21 @@ def investigate(
 
     path = Storage(root).save(session)
     print(render_report(session))
+    if not no_ai:
+        if config.ai_enabled and not session.ai_summary:
+            print(
+                "\nTip: AI is configured but unreachable. Start the local service "
+                "(`docker run -p 8000:8000 ghcr.io/OWNER/bugtrail-ai:latest`) or "
+                "check your BUGTRAIL_API_KEY / base_url.",
+                file=sys.stderr,
+            )
+        elif not config.ai_enabled:
+            print(
+                "\nTip: enable AI notes for a plain-English explanation of the ranking "
+                "(`bugtrail init --base-url http://127.0.0.1:8000/v1 --model qwen2.5-coder-0.5b-instruct` "
+                "for a free local model, or set BUGTRAIL_API_KEY for a cloud provider).",
+                file=sys.stderr,
+            )
     print(f"\nSession saved to {path}")
 
 

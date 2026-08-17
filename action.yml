@@ -1,0 +1,84 @@
+name: "BugTrail investigate"
+description: >
+  Run a BugTrail root-cause investigation on a stack trace and save the report.
+  Pair with actions/github-script in your workflow to post the report as a
+  comment on a bug report issue.
+
+inputs:
+  error-file:
+    description: >
+      Path (relative to the workspace root) to a file containing the stack trace
+      / error text to investigate. Use the issue body: write it to a file with a
+      github-script step before invoking this action.
+    required: true
+  model:
+    description: AI model id (e.g. llama-3.1-8b-instant). Leave empty for deterministic-only.
+    required: false
+    default: ""
+  base-url:
+    description: OpenAI-compatible endpoint for AI (e.g. https://api.groq.com/openai/v1). Leave empty for deterministic-only.
+    required: false
+    default: ""
+  report-path:
+    description: Where to write the rendered report (relative to the workspace root).
+    required: false
+    default: "bugtrail-report.txt"
+  python-version:
+    description: Python version used to run BugTrail.
+    required: false
+    default: "3.12"
+
+outputs:
+  report-path:
+    description: Absolute path to the rendered report file.
+    value: ${{ steps.investigate.outputs.report-path }}
+  exit-code:
+    description: Exit code of the investigation run (0 = success).
+    value: ${{ steps.investigate.outputs.exit-code }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install BugTrail
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+    - name: Install
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: pip install -q .
+    - name: Initialize config
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      env:
+        BASE_URL: ${{ inputs.base-url }}
+        MODEL: ${{ inputs.model }}
+      run: |
+        if [ -n "$BASE_URL" ]; then
+          bugtrail init --base-url "$BASE_URL" --model "$MODEL"
+        elif [ -n "$MODEL" ]; then
+          bugtrail init --model "$MODEL"
+        elif [ ! -f bugtrail.toml ]; then
+          bugtrail init
+        fi
+    - name: Investigate
+      id: investigate
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      env:
+        ERROR_FILE: ${{ inputs.error-file }}
+        REPORT_PATH: ${{ inputs.report-path }}
+        BASE_URL: ${{ inputs.base-url }}
+        MODEL: ${{ inputs.model }}
+      run: |
+        if [ -z "$BASE_URL" ] && [ -z "$MODEL" ]; then
+          NO_AI="--no-ai"
+        else
+          NO_AI=""
+        fi
+        set +e
+        bugtrail investigate --error "$ERROR_FILE" $NO_AI > "$REPORT_PATH" 2>&1
+        CODE=$?
+        set -e
+        echo "report-path=${{ github.workspace }}/$REPORT_PATH" >> "$GITHUB_OUTPUT"
+        echo "exit-code=$CODE" >> "$GITHUB_OUTPUT"

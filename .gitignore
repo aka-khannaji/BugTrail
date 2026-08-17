@@ -8,3 +8,4 @@ build/
 .ruff_cache/
 .pytest_cache/
 .bugtrail/
+services/bugtrail-ai/.models/

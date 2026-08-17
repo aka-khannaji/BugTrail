@@ -2,14 +2,78 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:
   test:
+    name: test (${{ matrix.os }}, py${{ matrix.python }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.11", "3.12", "3.13", "3.14"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Lint
+        run: python -m ruff check .
+      - name: Test
+        run: python -m pytest -q
+      - name: Module smoke
+        run: python -m bugtrail --version
+      - name: Console script smoke (posix)
+        if: runner.os != 'Windows'
+        run: bugtrail --version
+      - name: Console script smoke (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: "& \"$env:pythonLocation\\Scripts\\bugtrail.exe\" --version"
+
+  microservice:
+    name: microservice lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-      - run: uv sync --extra dev
-      - run: uv run ruff check .
-      - run: uv run pytest
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Lint
+        run: pip install ruff && python -m ruff check services/bugtrail-ai
+
+  docker:
+    name: bugtrail-ai image (build + health)
+    runs-on: ubuntu-latest
+    needs: microservice
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: services/bugtrail-ai
+          push: false
+          load: true
+          tags: bugtrail-ai:test
+      - name: Run
+        run: docker run -d -p 8000:8000 --name btai bugtrail-ai:test
+      - name: Health (waits for model load)
+        run: |
+          for i in $(seq 1 30); do
+            body=$(curl -s http://127.0.0.1:8000/health || true)
+            echo "$body" | grep -q '"loaded":true' && { echo "$body"; exit 0; }
+            sleep 3
+          done
+          echo "health never returned loaded:true" >&2
+          exit 1
+      - name: Chat smoke
+        run: |
+          curl -s -X POST http://127.0.0.1:8000/v1/chat/completions \
+            -H 'Content-Type: application/json' \
+            -d '{"messages":[{"role":"user","content":"reply with exactly: ok"}]}' \
+            | grep -q '"choices"' && echo "chat OK"
