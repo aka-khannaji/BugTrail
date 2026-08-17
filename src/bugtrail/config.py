@@ -73,7 +73,9 @@ def load_config(repo_root: Path) -> BugTrailConfig:
 CONFIG_TEMPLATE = """\
 # BugTrail configuration.
 # The API key is never stored here — set {api_key_env} in your environment.
-# Providers are OpenAI-compatible: OpenAI, Groq (free tier), Ollama (local, $0), ...
+# Providers are OpenAI-compatible: OpenAI, Groq (free tier), Ollama (local, $0),
+# or the bundled bugtrail-ai microservice (local, $0, no key):
+#   base_url = "http://127.0.0.1:8000/v1"
 
 [bugtrail]
 

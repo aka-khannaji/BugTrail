@@ -28,6 +28,8 @@ class AIResult:
         input_tokens: int,
         output_tokens: int,
         latency_ms: int,
+        *,
+        local: bool = False,
     ):
         self.task = task
         self.provider = provider
@@ -36,11 +38,12 @@ class AIResult:
         self.input_tokens = input_tokens
         self.output_tokens = output_tokens
         self.latency_ms = latency_ms
-        self.cost_usd = estimate_cost_usd(model, input_tokens, output_tokens)
+        self._local = local
+        self.cost_usd = 0.0 if local else estimate_cost_usd(model, input_tokens, output_tokens)
 
     @property
     def is_local(self) -> bool:
-        return self.provider in ("ollama", "local")
+        return self._local or self.provider in ("ollama", "local", "bugtrail-ai")
 
 
 class AIProvider:
@@ -49,8 +52,21 @@ class AIProvider:
         self._api_key = api_key
 
     @property
+    def is_local(self) -> bool:
+        host = (self._config.base_url or "").lower()
+        return self._config.provider in ("ollama", "local", "bugtrail-ai") or any(
+            marker in host for marker in ("localhost", "127.0.0.1", "0.0.0.0", "[::1]")
+        )
+
+    @property
     def available(self) -> bool:
-        return bool(self._api_key)
+        return bool(self._api_key) or self.is_local
+
+    def _chat_url(self) -> str:
+        base = self._config.base_url.rstrip("/")
+        if not base.endswith("/v1"):
+            base += "/v1"
+        return base + "/chat/completions"
 
     def chat(self, task: str, user_prompt: str, system_prompt: str | None = None) -> AIResult | None:
         if not self.available:
@@ -64,8 +80,8 @@ class AIProvider:
             "messages": messages,
             "temperature": self._config.temperature,
         }
-        headers = {"Authorization": f"Bearer {self._api_key}"}
-        url = self._config.base_url.rstrip("/") + "/chat/completions"
+        headers = {"Authorization": f"Bearer {self._api_key}"} if self._api_key else {}
+        url = self._chat_url()
         started = time.perf_counter()
         try:
             with httpx.Client(timeout=self._config.timeout_seconds) as client:
@@ -88,4 +104,5 @@ class AIProvider:
             input_tokens=int(usage.get("prompt_tokens", 0)),
             output_tokens=int(usage.get("completion_tokens", 0)),
             latency_ms=latency_ms,
+            local=self.is_local,
         )
