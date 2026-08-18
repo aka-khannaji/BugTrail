@@ -97,6 +97,11 @@ def investigate(
         raise typer.Exit(1) from exc
 
     path = Storage(root).save(session)
+    signature = Storage.error_signature(session)
+    recurrence = Storage(root).find_similar(signature, exclude_id=session.id)
+    if recurrence:
+        session = session.model_copy(update={"recurrence": recurrence})
+        Storage(root).save(session)
     print(render_report(session))
     if not no_ai:
         if config.ai_enabled and not session.ai_summary:
@@ -128,6 +133,22 @@ def report(
         print(f"Error: {exc}", file=sys.stderr)
         raise typer.Exit(1) from exc
     print(render_report(session))
+
+
+@app.command()
+def history(limit: int = typer.Option(20, "--limit", help="How many sessions to list.")) -> None:
+    """List past investigations, newest first."""
+    root = _repo_root()
+    items = Storage(root).history(limit)
+    if not items:
+        print("No investigations recorded yet. Run `bugtrail investigate` first.")
+        return
+    for item in items:
+        exc = item["exception_name"] or "(change overview)"
+        top = item["top_commit"] or ""
+        confidence = f"  {item['top_confidence'] * 100:.0f}%" if item["top_confidence"] else ""
+        print(f"{item['created_at']}  {exc:<28} {top[:60]}{confidence}")
+        print(f"      {item['id']}  {item['repo_root']}")
 
 
 # -- helpers -------------------------------------------------------------

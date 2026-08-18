@@ -18,6 +18,7 @@ class InvestigationSession(BaseModel):
     graph: dict[str, Any] = Field(default_factory=dict)
     hypotheses: list[Hypothesis] = Field(default_factory=list)
     timeline: list[dict[str, Any]] = Field(default_factory=list)
+    recurrence: list[dict[str, Any]] = Field(default_factory=list)
     ai_summary: str = ""
     costs: CostLedger = Field(default_factory=CostLedger)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -34,6 +35,7 @@ class InvestigationSession(BaseModel):
         costs: CostLedger,
         ai_summary: str = "",
         timeline: list[dict[str, Any]] | None = None,
+        recurrence: list[dict[str, Any]] | None = None,
     ) -> "InvestigationSession":
         return cls(
             id=session_id,
@@ -44,5 +46,6 @@ class InvestigationSession(BaseModel):
             hypotheses=hypotheses,
             ai_summary=ai_summary,
             timeline=timeline or [],
+            recurrence=recurrence or [],
             costs=costs,
         )

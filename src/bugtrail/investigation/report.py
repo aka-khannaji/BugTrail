@@ -65,6 +65,16 @@ def render_report(session: InvestigationSession) -> str:
             )
             number += 1
 
+    if session.recurrence:
+        lines.append("")
+        lines.append("RECURRING")
+        lines.append(THIN)
+        lines.append("This error signature was investigated before:")
+        for prior in session.recurrence[:3]:
+            when = prior["created_at"]
+            cause = prior["top_commit"] or "(no strong cause)"
+            lines.append(f"  - {when}  {cause}  [{prior['id']}]")
+
     if session.timeline:
         lines.append("")
         lines.append("TIMELINE")
