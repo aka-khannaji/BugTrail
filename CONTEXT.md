@@ -156,12 +156,13 @@ nil-deref. Plus honest-low cases that must NOT invent a cause.
 
 ## 9. Current status (as of 2026-08-18)
 
-Tests: 84 passing. Lint: ruff clean. Zoo: 22/22. Tree: clean.
+Tests: 86 passing. Lint: ruff clean. Zoo: 22/22. Tree: clean.
 Fresh-machine baseline verified on proot-Debian (2026-08-18): 84/84, ruff clean, 22/22.
 
 Commit history (tracked at origin = https://github.com/being-yash/BugTrail):
 
 ```
+871bce6 Phase 4: bugtrail cost command aggregating the cost ledger across sessions
 ac08d0c Add portable CONTEXT.md session memory + opencode.json
 9541019 Phase 3: CONTRIBUTING.md adapter + zoo contribution docs
 ade1563 Phase 3: SQLite session store, history command, recurrence detection
@@ -190,8 +191,9 @@ history + RECURRING dedupe, CONTRIBUTING.md. Pending: console-script/
 packaging polish (only verifiable on a clean Windows CI runner, blocked on this
 dev machine's corporate security layer).
 
-Phase 4 (not started) — integrations by demand (Sentry / VS Code / other CI),
-bugtrail cost summary when asked. Phase 5 (BugTrail Cloud) — explicitly
+Phase 4 — in progress. Done: `bugtrail cost` ledger summary command (aggregates
+per-task calls/tokens/cost across all sessions). Remaining (demand-gated):
+Sentry / VS Code / other CI integrations. Phase 5 (BugTrail Cloud) — explicitly
 parked until real usage signals.
 
 ## 10. Handoff protocol (working from another PC)
