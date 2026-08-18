@@ -138,6 +138,8 @@ Every AI operation records: provider, model, input tokens, output tokens, estima
 - `bugtrail investigate --error error.txt`
 - `bugtrail investigate --commit <sha>`
 - `bugtrail report`
+- `bugtrail history`
+- `bugtrail cost`
 
 No 30 commands.
 
@@ -167,7 +169,7 @@ Web dashboard, SaaS, VS Code extension, Slack/Jira/Sentry integration, OpenTelem
 - **Phase 1 — MVP** (goal: first useful investigation): Python + JS/TS + PHP/Laravel with Git + PostgreSQL + MySQL; stack trace parsing, log analysis, Git history, diff analysis, dependency analysis, evidence graph, basic AI reasoning, cost tracking, investigation report. **→ NEXT**
 - **Phase 2 — Make it genuinely good:** better root-cause ranking, timeline reconstruction, framework-specific evidence, Docker awareness, React/Next.js awareness, better Laravel analysis, investigation caching, reproducibility, test recommendations.
 - **Phase 3 — Ecosystem:** Go, Java, Ruby, Rust, C#, Kubernetes, GitHub Actions, Redis, Kafka, etc. Open the adapter system to contributors.
-- **Phase 4 — Integrations:** GitHub, GitLab, Sentry, OpenTelemetry, VS Code, CI/CD, Slack/Teams.
+- **Phase 4 — Integrations:** GitHub, GitLab, Sentry, OpenTelemetry, VS Code, CI/CD, Slack/Teams. Progress: `bugtrail cost` ledger summary done; the rest stays demand-gated (YAGNI).
 - **Phase 5 — BugTrail Cloud:** core remains open source; cloud provides team investigations, shared incident history, production telemetry, centralized evidence, collaboration, private org features, AI usage management. Monetization without making the OSS project bait.
 
 ## 11. The eventual BugTrail ecosystem
