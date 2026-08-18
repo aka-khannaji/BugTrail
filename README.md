@@ -139,6 +139,8 @@ Layout: `src/bugtrail/` is the core (evidence graph, adapters, deterministic eng
 provider, CLI); `services/bugtrail-ai/` is the optional local-AI microservice;
 `tests/fixtures/zoo/` holds the end-to-end bug scenarios used as both tests and showcase.
 
+See `CONTRIBUTING.md` to add a language adapter or a bug-zoo scenario.
+
 ## License
 
 MIT

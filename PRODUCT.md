@@ -197,7 +197,12 @@ Ordering note: the harness came first because every later item is proven against
 - **File-history proximity (`git log --follow` per frame file)** — the commit-mode-depth deliverable. When exact-line blame is *unreliable* (a cosmetic reformat masked the line, or the line isn't blamable), the last few commits that touched the frame file are surfaced as suspects (strength 0.4) even when they sit outside the recent-20 window. Deliberately *not* applied when blame is solid, so the initial/creation commit doesn't pollute rankings (caught by a zoo regression during the sprint).
 - Dogfood (Netbox #22923) re-verified green after the change.
 
-Remaining Phase-2 backlog: nothing outstanding on the harness/zoo front; the second dogfood repo is done. Phase 3 candidates next: Go adapter, SQLite session store + dedupe ("seen this bug before"), adapter contribution docs.
+## Phase 3 — Ecosystem depth & memory (in progress)
+
+- **Go adapter — DONE.** `GoAdapter` parses runtime panic traces (`panic:` / `fatal error:` + goroutine stacks, innermost-first), registered ahead of PHP so PHP's generic regex can't steal Go traces; `go.mod` added to manifest parsing (block + single `require`). Zoo +2 Go scenarios (22/22). Gotcha recorded: git blame follows content, so panics must land on a line the culprit introduced.
+- **SQLite session store + history + recurrence — DONE.** Sessions now also index into `.bugtrail/bugtrail.db` (signature = name + message + frame positions). `bugtrail history` lists past investigations; `investigate` attaches a RECURRING section when the same error signature was seen before. The new tests exposed and fixed a real bug: `new_session_id()` had second resolution, so same-second sessions collided and overwrote each other; ids now carry a unique suffix.
+- **Adapter contribution docs — DONE.** `CONTRIBUTING.md`: the adapter contract, frame-order rule, registry ordering, and the zoo workflow (scenario → red → green), with the Go adapter as the worked example.
+- **Console/packaging polish (exe trampolines)** — still pending; can only be verified on a clean Windows runner (CI), not on this dev machine.
 
 ---
 
