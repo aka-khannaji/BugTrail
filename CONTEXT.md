@@ -115,7 +115,9 @@ uv run pytest && uv run ruff check . && uv run python -m tests.zoo
 - **YAGNI** — build nothing ahead of need. Add only what the current task requires.
 - **Deterministic first, AI second** — the evidence graph is built deterministically;
   AI only ranks/reasons over it at the end.
-- **Commit only, never push.** The user owns upstream. No remotes, no pushing.
+- **Commit and push to origin only.** The user owns upstream
+  (origin = https://github.com/being-yash/BugTrail). Pushing is allowed;
+  never force-push or rewrite shared history.
 - **Zoo-gated** — every engine change is proven against tests/zoo.py before
   shipping. New bug class → add a scenario first (red), then fix (green).
 - **Honesty** — never fabricate a root cause or confidence. Report low confidence.
@@ -157,9 +159,10 @@ nil-deref. Plus honest-low cases that must NOT invent a cause.
 Tests: 84 passing. Lint: ruff clean. Zoo: 22/22. Tree: clean.
 Fresh-machine baseline verified on proot-Debian (2026-08-18): 84/84, ruff clean, 22/22.
 
-Commit history (all local, never pushed):
+Commit history (tracked at origin = https://github.com/being-yash/BugTrail):
 
 ```
+ac08d0c Add portable CONTEXT.md session memory + opencode.json
 9541019 Phase 3: CONTRIBUTING.md adapter + zoo contribution docs
 ade1563 Phase 3: SQLite session store, history command, recurrence detection
 3b6eaf1 Phase 3: Go adapter + go.mod manifest support
@@ -196,7 +199,9 @@ parked until real usage signals.
 When you move to another machine (or back):
 
 - Bring the repo — copy the whole folder (including .venv if it travels, or
-  recreate with `uv sync`) or use git locally. Remember: never push.
+  recreate with `uv sync`) or use git. Fetch/pull from origin
+  (https://github.com/being-yash/BugTrail); pushing new commits and branches
+  is allowed — never force-push or rewrite shared history.
 - First thing on a fresh machine: `uv sync`, then
   `uv run pytest && uv run ruff check . && uv run python -m tests.zoo` — confirm
   the baseline (84 passing / 22/22) before changing anything.
