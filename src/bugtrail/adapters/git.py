@@ -51,6 +51,25 @@ class GitAdapter:
         )
         return [self._parse_commit(line) for line in out.splitlines() if line]
 
+    def file_history(self, file: str, count: int = 5) -> list[dict[str, Any]]:
+        """Most recent commits that touched `file`, newest first.
+
+        ``--follow`` lets us trace the file across renames, so a commit that
+        wrote the buggy line before a path move is still found.
+        """
+        try:
+            out = self._git(
+                "log",
+                f"-{count}",
+                "--follow",
+                "--pretty=format:%H%x1f%s%x1f%an%x1f%aI%x1f%P",
+                "--",
+                file,
+            )
+        except RuntimeError:
+            return []
+        return [self._parse_commit(line) for line in out.splitlines() if line]
+
     def blame_line(self, file: str, line: int) -> dict[str, Any] | None:
         """Single-line porcelain blame -> the commit that last touched it."""
         if line < 1:

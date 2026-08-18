@@ -314,6 +314,33 @@ class EvidenceEngine:
             for exc in graph.exceptions():
                 graph.link(request.id, REL_REQUEST_TO_EXCEPTION, exc.id)
 
+    def attach_file_history(self, graph: EvidenceGraph, frame_files: set[str]) -> None:
+        """Give recent commits that touched a frame file a modest score.
+
+        Used only when exact-line blame for that file is unreliable — a later
+        cosmetic reformat masked the line, or the line is not blamable. The
+        true culprit may then sit outside the recent-commit window, so a few
+        commits from the file's own history are surfaced as suspects: weaker
+        than a direct blame, stronger than a random change.
+        """
+        if not frame_files:
+            return
+        file_history = getattr(self.git, "file_history", None)
+        if file_history is None:
+            return
+        for rel in frame_files:
+            for info in file_history(rel, 5):
+                node = graph.file_node(rel)
+                commit = graph.ensure_commit(
+                    info["sha"],
+                    info["message"],
+                    author=info["author"],
+                    date=info["date"],
+                )
+                graph.link(node.id, REL_FILE_MODIFIED_BY, commit.id)
+                strength = node.data.setdefault("commit_strength", {})
+                strength[info["sha"]] = max(strength.get(info["sha"], 0.0), 0.4)
+
     def _innermost_resolved_frames(self, graph: EvidenceGraph) -> set[str]:
         """The deepest frame of each exception chain that maps onto a repo file.
 
@@ -414,6 +441,8 @@ class EvidenceEngine:
         if not self.git.available:
             return
         innermost = self._innermost_resolved_frames(graph)
+        resolved_frame_files: set[str] = set()
+        unreliable_blame: set[str] = set()
         for node in graph.of_kind("file"):
             for frame in node.data.get("frames") or []:
                 raw = frame.get("file")
@@ -422,6 +451,7 @@ class EvidenceEngine:
                 rel = resolve_repo_path(self.repo_root, Path(raw))
                 if rel is None:
                     continue
+                resolved_frame_files.add(rel)
                 blamed = self.git.blame_line(rel, frame["line"])
                 if blamed:
                     commit = graph.ensure_commit(
@@ -435,6 +465,17 @@ class EvidenceEngine:
                     strength[blamed["sha"]] = max(strength.get(blamed["sha"], 0.0), 1.0)
                     if rel in innermost:
                         node.data["innermost"] = True
+                    cosmetic = bool(
+                        getattr(self.git, "is_whitespace_only", None)
+                        and self.git.is_whitespace_only(blamed["sha"])
+                    )
+                    if cosmetic:
+                        unreliable_blame.add(rel)
+                    else:
+                        unreliable_blame.discard(rel)
+                else:
+                    unreliable_blame.add(rel)
+        self.attach_file_history(graph, resolved_frame_files & unreliable_blame)
         for info in self.git.recent_commits(RECENT_COMMIT_WINDOW):
             sha = info["sha"]
             commit = graph.ensure_commit(

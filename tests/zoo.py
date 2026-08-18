@@ -848,6 +848,207 @@ class PaymentService
     culprit_message="Use cached FX rate for payments",
 )
 
+REFORMAT_MASKS_OLD_CULPRIT = Scenario(
+    name="reformat_masks_old_culprit",
+    notes=(
+        "The culprit is old (outside the recent window) and a fresh cosmetic "
+        "reformat masks blame; file-history must surface the real commit."
+    ),
+    files={
+        "README.md": "# App\n",
+        "app/lib/util.py": "VALUE = 1\n",
+    },
+    commits=(
+        CommitStep(
+            "Add checkout with rounding",
+            {
+                "app/services/checkout.js": (
+                    "function finalize(cart) {\n"
+                    "  const subtotal = cart.items.reduce((s, i) => s + i.price * i.quantity, 0);\n"
+                    "  return { total: subtotal, currency: cart.currency.toUpperCase() };\n"
+                    "}\n\n"
+                    "module.exports = { finalize };\n"
+                ),
+            },
+        ),
+        *(
+            CommitStep(f"Update docs part {i}", {"README.md": f"# App\n\nrevision {i}\n"})
+            for i in range(1, 21)
+        ),
+        CommitStep(
+            "Reformat checkout with tabs",
+            {
+                "app/services/checkout.js": (
+                    "function finalize(cart) {\n"
+                    "  const subtotal = cart.items.reduce((s, i) => s + i.price * i.quantity, 0);\n"
+                    "\treturn { total: subtotal, currency: cart.currency.toUpperCase() };\n"
+                    "}\n\n"
+                    "module.exports = { finalize };\n"
+                ),
+            },
+        ),
+    ),
+    error_text='''\
+TypeError: Cannot read properties of undefined (reading 'toUpperCase')
+    at finalize (app/services/checkout.js:3:52)
+    at Layer.handle [as handle_request] (node_modules/express/lib/router/layer.js:95:5)
+''',
+    culprit_message="Add checkout with rounding",
+)
+
+RENAME_SYMBOL_PYTHON = Scenario(
+    name="rename_symbol_python",
+    notes="Python API break: a rename removed `compute`; the call site blames an innocent commit.",
+    files={
+        "app/services/billing.py": (
+            "class BillingService:\n"
+            "    def compute(self, order):\n"
+            "        return sum(item.price for item in order.items)\n"
+        ),
+        "app/api/billing_controller.py": (
+            "from app.services.billing import BillingService\n\n\n"
+            "def charge(billing, order):\n"
+            "    return billing.compute(order)\n"
+        ),
+    },
+    commits=(
+        CommitStep(
+            "Rename compute to summarize",
+            {
+                "app/services/billing.py": (
+                    "class BillingService:\n"
+                    "    def summarize(self, order):\n"
+                    "        return sum(item.price for item in order.items)\n"
+                ),
+            },
+        ),
+    ),
+    error_text='''\
+Traceback (most recent call last):
+  File "app/api/billing_controller.py", line 6, in charge
+    return billing.compute(order)
+AttributeError: 'BillingService' object has no attribute 'compute'
+''',
+    culprit_message="Rename compute to summarize",
+)
+
+PHP_MISSING_CLASS = Scenario(
+    name="php_missing_class",
+    notes="PHP: a class from a dropped dependency, every frame in vendor/; the manifest commit is blamed.",
+    files={
+        "composer.json": (
+            '{"name": "demo/app", "require": '
+            '{"guzzlehttp/guzzle": "^7", "stripe/stripe-php": "^15"}}'
+        ),
+        "app/Services/PaymentService.php": (
+            "<?php\n\nnamespace App\\Services;\n\nclass PaymentService\n{\n"
+            "    public function pay()\n    {\n        return new \\Stripe\\StripeClient('sk');\n    }\n}\n"
+        ),
+    },
+    commits=(
+        CommitStep(
+            "Drop stripe dependency",
+            {
+                "composer.json": (
+                    '{"name": "demo/app", "require": {"guzzlehttp/guzzle": "^7"}}'
+                ),
+            },
+        ),
+    ),
+    error_text=(
+        "Error: Class 'Stripe\\StripeClient' not found\n"
+        "#0 /app/vendor/stripe/stripe-php/lib/StripeClient.php(5): StripeClient->__construct()\n"
+        "#1 /app/app/Services/PaymentService.php(8): App\\Services\\PaymentService->pay()\n"
+    ),
+    culprit_message="Drop stripe dependency",
+)
+
+NODE_DEPENDENCY_BUMP = Scenario(
+    name="node_dependency_bump",
+    notes="JS: a package.json version bump breaks an import; every frame in node_modules/.",
+    files={
+        "package.json": '{"name": "demo", "dependencies": {"express": "^4.18.0"}}',
+        "app/server.js": (
+            "const express = require('express');\nconst app = express();\napp.listen(3000);\n"
+        ),
+    },
+    commits=(
+        CommitStep(
+            "Upgrade express to v5",
+            {"package.json": '{"name": "demo", "dependencies": {"express": "^5.0.0"}}'},
+        ),
+    ),
+    error_text='''\
+Error: Cannot find module 'express/lib/application'
+    at Object.<anonymous> (node_modules/express/lib/express.js:1:1)
+    at Module._compile (node_modules/express/lib/express.js:99:11)
+''',
+    culprit_message="Upgrade express to v5",
+)
+
+GIANT_FEATURE_COMMIT = Scenario(
+    name="giant_feature_commit",
+    notes="A 30-file commit touching the frame file must not outrank the exact-line culprit.",
+    files={
+        "app/services/billing.py": (
+            "class BillingService:\n"
+            "    def charge(self, amount):\n"
+            "        return amount\n"
+        ),
+        **{f"app/lib/util_{i:02d}.py": f"VALUE = {i}\n" for i in range(30)},
+    },
+    commits=(
+        CommitStep(
+            "Add tax to billing",
+            {
+                "app/services/billing.py": (
+                    "class BillingService:\n"
+                    "    def charge(self, amount):\n"
+                    "        return amount * self.tax_rate\n"
+                ),
+            },
+        ),
+        CommitStep(
+            "Add 30 utility modules",
+            {
+                "app/services/billing.py": (
+                    "class BillingService:\n"
+                    "    def charge(self, amount):\n"
+                    "        return amount * self.tax_rate\n\n"
+                    "    def helper(self):\n"
+                    "        return 0\n"
+                ),
+                **{f"app/lib/util_{i:02d}.py": f"VALUE = {i}\n" for i in range(30)},
+            },
+        ),
+    ),
+    error_text='''\
+Traceback (most recent call last):
+  File "app/services/billing.py", line 3, in charge
+    return amount * self.tax_rate
+AttributeError: 'BillingService' object has no attribute 'tax_rate'
+''',
+    culprit_message="Add tax to billing",
+)
+
+TIMEOUT_WITH_LOGS = Scenario(
+    name="timeout_with_logs",
+    notes="Honest low confidence with a timeline: an opaque timeout after a deploy marker.",
+    honest_low=True,
+    files={
+        "app/server.js": "const express = require('express');\nconst app = express();\napp.listen(3000);\n",
+    },
+    error_text='''\
+[2026-08-01 09:00:00] app.INFO: deployed version 2.1.0
+[2026-08-01 09:00:30] app.INFO: request ok
+[2026-08-01 09:01:00] app.ERROR: request timed out
+TimeoutError: operation timed out after 30000ms
+    at Timeout._onTimeout (node:internal/timers:464:7)
+    at listOnTimeout (node:internal/timers:496:5)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+''',
+)
+
 SCENARIOS: tuple[Scenario, ...] = (
     ORDER_SERVICE,
     CART_SERVICE,
@@ -863,6 +1064,12 @@ SCENARIOS: tuple[Scenario, ...] = (
     DEADLOCK,
     NOT_NULL,
     LARAVEL_REQUEST,
+    REFORMAT_MASKS_OLD_CULPRIT,
+    RENAME_SYMBOL_PYTHON,
+    PHP_MISSING_CLASS,
+    NODE_DEPENDENCY_BUMP,
+    GIANT_FEATURE_COMMIT,
+    TIMEOUT_WITH_LOGS,
 )
 
 

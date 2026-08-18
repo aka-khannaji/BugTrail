@@ -191,12 +191,13 @@ The zoo pass-rate is the single number we optimize. Everything else is plumbing.
 
 Ordering note: the harness came first because every later item is proven against it.
 
-## Sprint 2 (done)
+## Sprint 3 (done)
 
-- **Zoo 10 → 14 scenarios** — added: removed-function API break (JS), DB deadlock, DB NOT NULL violation, Laravel request + HTTP context. **14/14 passing.**
-- **Missing-symbol diff analysis** (`removed_function` drove it): error messages that name a missing symbol (`X is not a function`, `has no attribute 'X'`, `'X' is not defined`, `Call to undefined method`) now trigger a scan of recent commits' diffs; a commit that deleted the symbol's definition/export gets the strongest deterministic signal (1.3) with an explicit reason. This fixes the multi-file-refactor class where the failing call site blames an innocent commit.
-- **Actionable NEXT INVESTIGATION**: hypothesis steps now say `Run: git show <sha>`, `Write a regression test covering <file>`, and `Reproduce <METHOD> <path>` when request context is known.
-- Fixed a confidence-consistency bug: `max_score` was computed before the symbol boost, letting a boosted entry saturate at 99%; it's now computed after.
+- **Zoo 14 → 20 scenarios — full Phase-2 growth target reached. 20/20 passing.** New: reformat-masks-old-culprit (file-history rescue), rename-symbol (Python API break), PHP missing-class, Node dependency bump, giant-feature-commit volume guard, timeout-with-logs (honest low + timeline).
+- **File-history proximity (`git log --follow` per frame file)** — the commit-mode-depth deliverable. When exact-line blame is *unreliable* (a cosmetic reformat masked the line, or the line isn't blamable), the last few commits that touched the frame file are surfaced as suspects (strength 0.4) even when they sit outside the recent-20 window. Deliberately *not* applied when blame is solid, so the initial/creation commit doesn't pollute rankings (caught by a zoo regression during the sprint).
+- Dogfood (Netbox #22923) re-verified green after the change.
+
+Remaining Phase-2 backlog: nothing outstanding on the harness/zoo front; the second dogfood repo is done. Phase 3 candidates next: Go adapter, SQLite session store + dedupe ("seen this bug before"), adapter contribution docs.
 
 ---
 
