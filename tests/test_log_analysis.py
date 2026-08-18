@@ -77,7 +77,9 @@ def test_pipeline_includes_log_evidence(tmp_path):
     from bugtrail.investigation.report import render_report
 
     report = render_report(session)
-    assert "Log [ERROR] line 1" in report
+    assert "Log [ERROR]" in report
+    assert "Retry failed again" in report
+    assert "2026-08-17T09:00:03" in report
 
 
 class _FakeGit:

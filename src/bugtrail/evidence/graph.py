@@ -16,6 +16,7 @@ REL_FILE_DB = "issued"
 REL_DB_TO_EXCEPTION = "explains"
 REL_LOG_TO_EXCEPTION = "contextualizes"
 REL_DEP_TO_EXCEPTION = "implicates"
+REL_REQUEST_TO_EXCEPTION = "triggers"
 
 
 def _normalize_path(path: str) -> str:
@@ -107,8 +108,11 @@ class EvidenceGraph:
     def add_database_query(self, description: str) -> Evidence:
         return self.add(Evidence.database_query(description))
 
-    def add_log(self, level: str, message: str, *, line: int = 0, source: str = "") -> Evidence:
-        return self.add(Evidence.log(level, message, line=line, source=source))
+    def add_request(self, method: str, path: str) -> Evidence:
+        return self.add(Evidence.request(method, path))
+
+    def add_log(self, level: str, message: str, *, line: int = 0, source: str = "", ts: str = "") -> Evidence:
+        return self.add(Evidence.log(level, message, line=line, source=source, ts=ts))
 
     def add_dependency(self, name: str, *, declared: bool = False, manifest: str = "") -> Evidence:
         return self.add(Evidence.dependency(name, declared=declared, manifest=manifest))

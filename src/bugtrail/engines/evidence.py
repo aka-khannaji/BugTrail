@@ -14,6 +14,7 @@ from bugtrail.evidence.graph import (
     REL_DEP_TO_EXCEPTION,
     REL_FILE_MODIFIED_BY,
     REL_LOG_TO_EXCEPTION,
+    REL_REQUEST_TO_EXCEPTION,
     EvidenceGraph,
 )
 from bugtrail.evidence.models import Evidence
@@ -31,12 +32,21 @@ DB_PATTERNS: list[tuple[re.Pattern, str]] = [
 # ORDER NOTE: `source` is captured before `level` so "app.ERROR: ..." parses.
 LOG_PATTERNS: list[re.Pattern] = [
     re.compile(
-        r"^\s*(\[[^\]]*\]\s*)?(?P<source>[\w./\-]+\.)?"
+        r"^\s*(?P<prefix>\[[^\]]*\]\s*)?"
+        r"(?P<source>[\w./\-]+\.)?"
         r"(?P<level>ERROR|WARN|WARNING|INFO|DEBUG|CRITICAL|FATAL)\s*[:\-]\s*"
         r"(?P<message>.*)$",
         re.IGNORECASE,
     ),
 ]
+
+# HTTP request line carried in error text, e.g. "POST /api/orders HTTP/1.1".
+REQUEST_PATTERN = re.compile(
+    r"\b(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+([^\s\"']+)(?:\s+HTTP/\d)?",
+    re.IGNORECASE,
+)
+
+TIMESTAMP_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)")
 
 RECENT_COMMIT_WINDOW = 20
 
@@ -56,10 +66,20 @@ MANIFEST_FILES: tuple[str, ...] = (
     "pyproject.toml",
 )
 
-MISSING_DEP_PATTERNS: list[re.Pattern] = [
-    re.compile(r"No module named ['\"]([^'\"]+)['\"]", re.IGNORECASE),
-    re.compile(r"Cannot find module ['\"]([^'\"]+)['\"]", re.IGNORECASE),
-    re.compile(r"Class ['\"]([^'\"]+)['\"] not found", re.IGNORECASE),
+# Patterns yield the missing package/module name. Group 1 is the module;
+# the "cannot import name X from pkg" pattern puts the *package* in group 2
+# because the import name itself is never a declared dependency.
+MISSING_DEP_PATTERNS: list[tuple[re.Pattern, int]] = [
+    (re.compile(r"No module named ['\"]([^'\"]+)['\"]", re.IGNORECASE), 1),
+    (re.compile(r"Cannot find module ['\"]([^'\"]+)['\"]", re.IGNORECASE), 1),
+    (re.compile(r"Class ['\"]([^'\"]+)['\"] not found", re.IGNORECASE), 1),
+    (
+        re.compile(
+            r"cannot import name ['\"]([^'\"]+)['\"] from ['\"]([^'\"]+)['\"]",
+            re.IGNORECASE,
+        ),
+        2,
+    ),
 ]
 
 
@@ -83,6 +103,17 @@ def resolve_repo_path(repo_root: Path, raw: Path) -> str | None:
     return None
 
 
+def normalize_ts(raw: str) -> str | None:
+    """Parse an ISO-ish timestamp into a comparable ``YYYY-MM-DDTHH:MM[:SS]`` string."""
+    match = TIMESTAMP_PATTERN.search(raw)
+    if not match:
+        return None
+    value = match.group(1)
+    if "T" not in value:
+        value = value.replace(" ", "T", 1)
+    return value
+
+
 def extract_log_lines(error_text: str) -> list[dict]:
     """Deterministic scan of pasted error text for log-shaped lines."""
     entries: list[dict] = []
@@ -96,7 +127,8 @@ def extract_log_lines(error_text: str) -> list[dict]:
                     "level": match.group("level").upper(),
                     "message": match.group("message").strip(),
                     "line": line_no,
-                        "source": (match.groupdict().get("source") or "").rstrip("."),
+                    "source": (match.groupdict().get("source") or "").rstrip("."),
+                    "ts": normalize_ts(match.group("prefix") or ""),
                 }
             )
             break
@@ -105,10 +137,10 @@ def extract_log_lines(error_text: str) -> list[dict]:
 
 def extract_missing_dependency(error_text: str) -> str | None:
     """Package/module name the error says is missing, or None."""
-    for pattern in MISSING_DEP_PATTERNS:
+    for pattern, group in MISSING_DEP_PATTERNS:
         match = pattern.search(error_text)
         if match:
-            return _top_level(match.group(1))
+            return _top_level(match.group(group))
     return None
 
 
@@ -121,6 +153,69 @@ def _top_level(name: str) -> str:
             return f"{parts[0]}/{parts[1].split('.')[0].split('/')[0]}"
         return name
     return name.split(".")[0]
+
+
+DEPLOY_PATTERN = re.compile(r"\bdeploy(?:ed|ing|s)?\b", re.IGNORECASE)
+ERROR_LEVELS = {"ERROR", "CRITICAL", "FATAL"}
+
+
+def build_timeline(graph: EvidenceGraph) -> list[dict]:
+    """Chronological dated facts: timestamped log lines plus the exception.
+
+    Only entries with a parseable timestamp are included; the exception is
+    appended last. Deploy markers are log lines that mention a deployment.
+    Returns an empty list when there is no temporal signal.
+    """
+    events: list[dict] = []
+    for node in graph.of_kind("log"):
+        ts = node.data.get("ts")
+        if not ts:
+            continue
+        events.append(
+            {
+                "ts": ts,
+                "level": node.data.get("level"),
+                "message": node.data.get("message", ""),
+                "deploy": bool(DEPLOY_PATTERN.search(node.data.get("message", ""))),
+            }
+        )
+    if not events:
+        return []
+    events.sort(key=lambda event: event["ts"])
+    for exc in graph.exceptions():
+        events.append(
+            {
+                "ts": "",
+                "level": "EXCEPTION",
+                "message": f"{exc.data.get('name')}: {exc.data.get('message', '')}",
+                "deploy": False,
+            }
+        )
+    return events
+
+
+def timeline_summary(timeline: list[dict]) -> str | None:
+    """Summarize the ok-before-failure / deploy relationship, or None."""
+    failure = next(
+        (
+            index
+            for index, event in enumerate(timeline)
+            if event.get("level") in ERROR_LEVELS or event.get("level") == "EXCEPTION"
+        ),
+        None,
+    )
+    if failure is None:
+        return None
+    before = timeline[:failure]
+    ok = [event for event in before if event.get("deploy") is False]
+    deploys = [event for event in before if event.get("deploy")]
+    parts: list[str] = []
+    if ok:
+        count = len(ok)
+        parts.append(f"{count} ok event{'s' if count != 1 else ''} before first failure")
+    if deploys:
+        parts.append(f"first failure after {deploys[-1]['message']}")
+    return " · ".join(parts) if parts else None
 
 
 def parse_manifest_names(repo_root: Path, manifest: str) -> list[str]:
@@ -186,8 +281,17 @@ class EvidenceEngine:
             graph.add_exception_with_frames(exc)
             self.add_database_evidence(graph)
             self.add_log_evidence(graph, error_text)
+            self.detect_request(graph, error_text)
             self.detect_dependencies(graph, error_text)
         return exc
+
+    def detect_request(self, graph: EvidenceGraph, error_text: str) -> None:
+        """Record HTTP request context (e.g. ``POST /api/orders HTTP/1.1``)."""
+        match = REQUEST_PATTERN.search(error_text)
+        if match:
+            request = graph.add_request(match.group(1).upper(), match.group(2))
+            for exc in graph.exceptions():
+                graph.link(request.id, REL_REQUEST_TO_EXCEPTION, exc.id)
 
     def detect_dependencies(self, graph: EvidenceGraph, error_text: str) -> None:
         """Record dependency evidence for missing-module errors.
@@ -216,7 +320,11 @@ class EvidenceEngine:
             for exc in graph.exceptions():
                 graph.link(dep.id, REL_DEP_TO_EXCEPTION, exc.id)
 
-        if missing is not None and not declared and manifests and not self._any_resolved_frame(graph):
+        if missing is not None and manifests and not self._any_resolved_frame(graph):
+            # No repo frame is blamable (site-packages/node_modules/vendor all
+            # the way down), so the best lead is the manifest's last change —
+            # whether the module was dropped (undeclared) or its version was
+            # bumped and broke an import (still declared).
             target = manifests[0]
             node = graph.file_node(target)
             frames = node.data.setdefault("frames", [])
@@ -236,7 +344,11 @@ class EvidenceEngine:
     def add_log_evidence(self, graph: EvidenceGraph, error_text: str) -> None:
         for entry in extract_log_lines(error_text):
             node = graph.add_log(
-                entry["level"], entry["message"], line=entry["line"], source=entry["source"]
+                entry["level"],
+                entry["message"],
+                line=entry["line"],
+                source=entry["source"],
+                ts=entry["ts"] or "",
             )
             for exc in graph.exceptions():
                 graph.link(node.id, REL_LOG_TO_EXCEPTION, exc.id)

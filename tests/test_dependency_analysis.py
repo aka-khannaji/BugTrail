@@ -35,6 +35,19 @@ def test_extract_missing_dependency_none():
     assert extract_missing_dependency("TypeError: x is undefined") is None
 
 
+def test_extract_missing_dependency_import_name():
+    assert (
+        extract_missing_dependency("ImportError: cannot import name 'Session' from 'requests'")
+        == "requests"
+    )
+    assert (
+        extract_missing_dependency(
+            "ImportError: cannot import name 'JSONDecodeError' from 'requests.requests'"
+        )
+        == "requests"
+    )
+
+
 def test_parse_manifest_names_package_json(tmp_path: Path):
     (tmp_path / "package.json").write_text(
         '{"dependencies": {"express": "^4.0", "axios": "~1.0"}, "devDependencies": {"jest": "^29"}}',

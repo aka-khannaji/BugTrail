@@ -13,7 +13,11 @@ from bugtrail.ai.cost import CostLedger, CostRow
 from bugtrail.ai.provider import AIProvider
 from bugtrail.config import BugTrailConfig, load_config
 from bugtrail.engines.detective import DetectiveEngine, Hypothesis
-from bugtrail.engines.evidence import MAX_FILES_SCORED_PER_COMMIT, EvidenceEngine
+from bugtrail.engines.evidence import (
+    MAX_FILES_SCORED_PER_COMMIT,
+    EvidenceEngine,
+    build_timeline,
+)
 from bugtrail.evidence.graph import REL_FILE_MODIFIED_BY, EvidenceGraph
 from bugtrail.investigation.session import InvestigationSession
 from bugtrail.storage import new_session_id
@@ -109,6 +113,7 @@ def run_investigation(
         hypotheses=hypotheses,
         costs=ledger,
         ai_summary=ai_summary,
+        timeline=build_timeline(graph),
     )
     return session
 

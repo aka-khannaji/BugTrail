@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from bugtrail.ai.cost import format_cost
+from bugtrail.engines.evidence import timeline_summary
 from bugtrail.investigation.session import InvestigationSession
 
 BAR = "=" * 60
@@ -37,6 +38,14 @@ def render_report(session: InvestigationSession) -> str:
         lines.append(f"Confidence: {top.confidence * 100:.0f}%")
         if not session.exception:
             lines.append("(no error text supplied — this is a change overview, not a root cause)")
+    else:
+        lines.append("")
+        lines.append("NO STRONG ROOT CAUSE")
+        lines.append(THIN)
+        lines.append(
+            "Evidence is insufficient to name a commit. Add a longer trace, "
+            "logs, or the failing request for a lead."
+        )
 
     lines.append("")
     lines.append("EVIDENCE")
@@ -55,6 +64,23 @@ def render_report(session: InvestigationSession) -> str:
                 f"{number}. +{remaining} more evidence entries for commit {hypothesis.commit_sha[:10]}"
             )
             number += 1
+
+    if session.timeline:
+        lines.append("")
+        lines.append("TIMELINE")
+        lines.append(THIN)
+        width = max((len(event["ts"]) for event in session.timeline), default=0)
+        for event in session.timeline:
+            ts = event["ts"].ljust(width) if event["ts"] else " " * width
+            marker = ""
+            if event["deploy"]:
+                marker = "  (deploy)"
+            elif event["level"] in ("ERROR", "CRITICAL", "FATAL", "EXCEPTION"):
+                marker = "  ✗"
+            lines.append(f"{ts}  {event['message']}{marker}")
+        summary = timeline_summary(session.timeline)
+        if summary:
+            lines.append(f"Summary: {summary}")
 
     lines.append("")
     lines.append("NEXT INVESTIGATION")
@@ -93,9 +119,14 @@ def _evidence_list(session: InvestigationSession) -> list[str]:
             items.append(f"Database: {node.get('label', node.get('data', {}).get('description', ''))}")
         elif kind == "log":
             data = node.get("data", {})
+            ts = data.get("ts", "")
+            stamp = f" {ts}" if ts else ""
             items.append(
-                f"Log [{data.get('level')}] line {data.get('line')}: {data.get('message')}"
+                f"Log [{data.get('level')}]{stamp} line {data.get('line')}: {data.get('message')}"
             )
+        elif kind == "request":
+            data = node.get("data", {})
+            items.append(f"Request: {data.get('method')} {data.get('path')}")
         elif kind == "dependency":
             data = node.get("data", {})
             status = "declared" if data.get("declared") else "missing from manifests"

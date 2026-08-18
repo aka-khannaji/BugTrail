@@ -67,10 +67,22 @@ class Evidence(BaseModel):
         return cls(kind=EvidenceKind.DATABASE_QUERY, label=description, data={"description": description})
 
     @classmethod
-    def log(cls, level: str, message: str, *, line: int = 0, source: str = "") -> "Evidence":
+    def request(cls, method: str, path: str) -> "Evidence":
+        return cls(
+            kind=EvidenceKind.REQUEST,
+            label=f"{method} {path}",
+            data={"method": method, "path": path},
+        )
+
+    @classmethod
+    def log(
+        cls, level: str, message: str, *, line: int = 0, source: str = "", ts: str = ""
+    ) -> "Evidence":
         data = {"level": level, "message": message, "line": line}
         if source:
             data["source"] = source
+        if ts:
+            data["ts"] = ts
         return cls(kind=EvidenceKind.LOG, label=f"{level}: {message[:60]}", data=data)
 
     @classmethod
