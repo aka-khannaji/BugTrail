@@ -1049,6 +1049,93 @@ TimeoutError: operation timed out after 30000ms
 ''',
 )
 
+GO_INDEX_PANIC = Scenario(
+    name="go_index_panic",
+    notes="Go runtime panic: a safe helper was inlined without its empty-check guard.",
+    files={
+        "app/services/orders.go": (
+            "package main\n\n"
+            "func handleOrder(order Order) string {\n"
+            "    return format(order)\n"
+            "}\n\n"
+            "func format(order Order) string {\n"
+            "    if len(order.items) == 0 {\n"
+            "        return \"empty\"\n"
+            "    }\n"
+            "    return order.items[0].Name\n"
+            "}\n"
+        ),
+        "app/main.go": "package main\n\nfunc main() {\n    run()\n}\n",
+    },
+    commits=(
+        CommitStep(
+            "Inline order formatting",
+            {
+                "app/services/orders.go": (
+                    "package main\n\n"
+                    "func handleOrder(order Order) string {\n"
+                    "    name := order.items[0].Name\n"
+                    "    return name\n"
+                    "}\n"
+                ),
+            },
+        ),
+    ),
+    error_text=(
+        "panic: runtime error: index out of range [0] with length 0\n\n"
+        "goroutine 6 [running]:\n"
+        "main.handleOrder(0xc00003a700)\n"
+        "\t/app/services/orders.go:4 +0x1f\n"
+        "main.main()\n"
+        "\t/app/main.go:22 +0x5a\n"
+    ),
+    culprit_message="Inline order formatting",
+)
+
+GO_NIL_DEREF = Scenario(
+    name="go_nil_deref",
+    notes="Go nil-pointer dereference: a nil guard was removed before a method call.",
+    files={
+        "app/services/storage.go": (
+            "package main\n\n"
+            "type Storage struct {\n"
+            "\tconn *DB\n"
+            "}\n\n"
+            "func (s *Storage) Save(id string) error {\n"
+            "\tconn := s.conn\n"
+            "\treturn conn.Write(id)\n"
+            "}\n"
+        ),
+        "app/main.go": "package main\n\nfunc main() {\n    run()\n}\n",
+    },
+    commits=(
+        CommitStep(
+            "Remove connection guard",
+            {
+                "app/services/storage.go": (
+                    "package main\n\n"
+                    "type Storage struct {\n"
+                    "\tconn *DB\n"
+                    "}\n\n"
+                    "func (s *Storage) Save(id string) error {\n"
+                    "\treturn s.conn.Write(id)\n"
+                    "}\n"
+                ),
+            },
+        ),
+    ),
+    error_text=(
+        "panic: runtime error: invalid memory address or nil pointer dereference\n"
+        "[signal SIGSEGV: segmentation violation code=0x1 addr=0x0 pc=0x4883a5]\n\n"
+        "goroutine 8 [running]:\n"
+        "main.(*Storage).Save(0x0, 0x0)\n"
+        "\t/app/services/storage.go:8 +0x26\n"
+        "main.main()\n"
+        "\t/app/main.go:22 +0x5a\n"
+    ),
+    culprit_message="Remove connection guard",
+)
+
 SCENARIOS: tuple[Scenario, ...] = (
     ORDER_SERVICE,
     CART_SERVICE,
@@ -1070,6 +1157,8 @@ SCENARIOS: tuple[Scenario, ...] = (
     NODE_DEPENDENCY_BUMP,
     GIANT_FEATURE_COMMIT,
     TIMEOUT_WITH_LOGS,
+    GO_INDEX_PANIC,
+    GO_NIL_DEREF,
 )
 
 

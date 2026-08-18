@@ -91,6 +91,17 @@ def test_parse_manifest_names_requirements(tmp_path: Path):
     assert "base" not in names
 
 
+def test_parse_manifest_names_go_mod(tmp_path: Path):
+    (tmp_path / "go.mod").write_text(
+        "module example.com/app\n\ngo 1.22\n\n"
+        "require (\n\tgithub.com/gin-gonic/gin v1.9.1\n\tgithub.com/spf13/cobra v1.8.0\n)\n",
+        encoding="utf-8",
+    )
+    names = parse_manifest_names(tmp_path, "go.mod")
+    assert "github.com/gin-gonic/gin" in names
+    assert "github.com/spf13/cobra" in names
+
+
 def test_manifest_blame_fallback_when_all_frames_in_node_modules(tmp_path: Path):
     from bugtrail.adapters.git import GitAdapter
     from bugtrail.investigation.pipeline import run_investigation

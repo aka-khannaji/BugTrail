@@ -73,6 +73,7 @@ MANIFEST_FILES: tuple[str, ...] = (
     "composer.json",
     "requirements.txt",
     "pyproject.toml",
+    "go.mod",
 )
 
 # Patterns yield the missing package/module name. Group 1 is the module;
@@ -271,6 +272,24 @@ def parse_manifest_names(repo_root: Path, manifest: str) -> list[str]:
                     match = re.match(r"['\"]([\w.\-]+)['\"]", stripped.lstrip("- "))
                     if match:
                         names.append(match.group(1))
+        return names
+    if manifest == "go.mod":
+        names: list[str] = []
+        in_block = False
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("require"):
+                rest = stripped[len("require"):].strip()
+                if rest.startswith("(") or not rest:
+                    in_block = True
+                elif rest:
+                    names.append(rest.split()[0])
+                continue
+            if in_block:
+                if stripped == ")":
+                    in_block = False
+                elif stripped:
+                    names.append(stripped.split()[0])
         return names
     return []
 

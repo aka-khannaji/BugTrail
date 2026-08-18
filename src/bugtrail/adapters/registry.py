@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from bugtrail.adapters.base import ErrorParse, LanguageAdapter
+from bugtrail.adapters.go import GoAdapter
 from bugtrail.adapters.javascript import JavaScriptAdapter
 from bugtrail.adapters.php import PHPAdapter
 from bugtrail.adapters.python import PythonAdapter
@@ -12,6 +13,7 @@ from bugtrail.evidence.models import Evidence
 ADAPTERS: tuple[type[LanguageAdapter], ...] = (
     PythonAdapter,
     JavaScriptAdapter,
+    GoAdapter,
     PHPAdapter,
 )
 
