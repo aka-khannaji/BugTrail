@@ -672,6 +672,182 @@ TypeError: Cannot read properties of undefined (reading 'toUpperCase')
     culprit_message="Change checkout total rounding",
 )
 
+REMOVED_FUNCTION = Scenario(
+    name="removed_function",
+    notes="Multi-file API break: a refactor removed an exported function the caller still uses.",
+    files={
+        "app/services/pricing.js": '''\
+function discountRate(code) {
+  const rates = { SAVE10: 0.1 };
+  return rates[code] || 0;
+}
+
+function applyCoupon(cart, code) {
+  return cart.total * (1 - discountRate(code));
+}
+
+module.exports = { applyCoupon, discountRate };
+''',
+        "app/routes/checkout.js": '''\
+const { applyCoupon, discountRate } = require('../services/pricing');
+
+function handleCheckout(req, res) {
+  const coupon = discountRate(req.body.code);
+  res.json({ total: applyCoupon(req.body.cart, req.body.code), coupon });
+}
+
+module.exports = { handleCheckout };
+''',
+    },
+    commits=(
+        CommitStep(
+            "Use single discount lookup",
+            {
+                "app/services/pricing.js": '''\
+function applyCoupon(cart, code) {
+  const rates = { SAVE10: 0.1 };
+  return cart.total * (1 - (rates[code] || 0));
+}
+
+module.exports = { applyCoupon };
+''',
+            },
+        ),
+    ),
+    error_text='''\
+TypeError: discountRate is not a function
+    at handleCheckout (app/routes/checkout.js:4:20)
+    at Layer.handle [as handle_request] (node_modules/express/lib/router/layer.js:95:5)
+''',
+    culprit_message="Use single discount lookup",
+)
+
+DEADLOCK = Scenario(
+    name="deadlock",
+    notes="DB deadlock: a locking change under concurrency; the raise-site line is blamed.",
+    files={
+        "app/services/order_service.py": '''\
+class OrderService:
+    def process_payment(self, order_id):
+        tx = db_transaction()
+        tx.execute("UPDATE orders SET status = 'paid' WHERE id = ?", (order_id,))
+        tx.commit()
+        return {"id": order_id}
+''',
+    },
+    commits=(
+        CommitStep(
+            "Add locking to payment processing",
+            {
+                "app/services/order_service.py": '''\
+class OrderService:
+    def process_payment(self, order_id):
+        tx = db_transaction()
+        tx.execute("SELECT * FROM orders WHERE id = ? FOR UPDATE", (order_id,))
+        tx.execute("UPDATE orders SET status = 'paid' WHERE id = ?", (order_id,))
+        tx.commit()
+        return {"id": order_id}
+''',
+            },
+        ),
+    ),
+    error_text='''\
+Traceback (most recent call last):
+  File "app/services/order_service.py", line 4, in process_payment
+    tx.execute("SELECT * FROM orders WHERE id = ? FOR UPDATE", (order_id,))
+MySQLdb._exceptions.OperationalError: (1213, 'Deadlock found when trying to get lock; try restarting transaction')
+''',
+    culprit_message="Add locking to payment processing",
+)
+
+NOT_NULL = Scenario(
+    name="not_null",
+    notes="DB NOT NULL violation: a commit stopped persisting a required column.",
+    files={
+        "app/services/order_service.py": '''\
+class OrderService:
+    def create_order(self, order_id, customer_id):
+        tx = db_transaction()
+        tx.execute("INSERT INTO orders (id, customer_id) VALUES (?, ?)", (order_id, customer_id))
+        tx.commit()
+        return {"id": order_id}
+''',
+    },
+    commits=(
+        CommitStep(
+            "Stop persisting customer on order creation",
+            {
+                "app/services/order_service.py": '''\
+class OrderService:
+    def create_order(self, order_id, customer_id):
+        tx = db_transaction()
+        tx.execute("INSERT INTO orders (id) VALUES (?)", (order_id,))
+        tx.commit()
+        return {"id": order_id}
+''',
+            },
+        ),
+    ),
+    error_text='''\
+Traceback (most recent call last):
+  File "app/services/order_service.py", line 4, in create_order
+    tx.execute("INSERT INTO orders (id) VALUES (?)", (order_id,))
+sqlite3.IntegrityError: NOT NULL constraint failed: orders.customer_id
+''',
+    culprit_message="Stop persisting customer on order creation",
+)
+
+LARAVEL_REQUEST = Scenario(
+    name="laravel_request",
+    notes="PHP/Laravel with HTTP request context: property access on a null FX object.",
+    files={
+        "var/www/html/app/Services/PaymentService.php": '''\
+<?php
+
+namespace App\\Services;
+
+class PaymentService
+{
+    public function charge(int $orderId, float $amount): array
+    {
+        $rate = $this->fx()->latest();
+        return ['id' => $orderId, 'charged' => $amount * $rate];
+    }
+}
+''',
+    },
+    commits=(
+        CommitStep(
+            "Use cached FX rate for payments",
+            {
+                "var/www/html/app/Services/PaymentService.php": '''\
+<?php
+
+namespace App\\Services;
+
+class PaymentService
+{
+    public function charge(int $orderId, float $amount): array
+    {
+        $rate = $this->fx()->cached;
+        return ['id' => $orderId, 'charged' => $amount * $rate];
+    }
+}
+''',
+            },
+        ),
+    ),
+    error_text=(
+        "POST /api/orders HTTP/1.1\n"
+        "ErrorException: Trying to get property 'cached' of non-object\n"
+        "#0 /var/www/html/app/Services/PaymentService.php(9): "
+        "App\\Services\\PaymentService->charge()\n"
+        "#1 /var/www/html/app/Http/Controllers/PaymentController.php(31): "
+        "App\\Http\\Controllers\\PaymentController->pay()\n"
+    ),
+    culprit_message="Use cached FX rate for payments",
+)
+
 SCENARIOS: tuple[Scenario, ...] = (
     ORDER_SERVICE,
     CART_SERVICE,
@@ -683,6 +859,10 @@ SCENARIOS: tuple[Scenario, ...] = (
     DEPLOY_MARKER,
     INTERMITTENT_TIMEOUT,
     REQUEST_ROUTE,
+    REMOVED_FUNCTION,
+    DEADLOCK,
+    NOT_NULL,
+    LARAVEL_REQUEST,
 )
 
 

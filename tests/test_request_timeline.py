@@ -9,7 +9,7 @@ import pytest
 
 from bugtrail.engines.evidence import build_timeline, timeline_summary
 from bugtrail.evidence.graph import EvidenceGraph
-from bugtrail.evidence.models import Evidence
+from bugtrail.evidence.models import Evidence, Frame
 
 
 def test_request_extraction(tmp_path: Path):
@@ -50,6 +50,31 @@ def test_request_not_extracted_without_http_context(tmp_path: Path):
     engine = EvidenceEngine(tmp_path, git=None)
     engine.detect_request(graph, "TypeError: boom\n    at foo (app.js:1:1)\n")
     assert graph.of_kind("request") == []
+
+
+def test_next_steps_include_reproduce_when_request_known():
+    from bugtrail.engines.detective import DetectiveEngine
+    from bugtrail.evidence.graph import REL_FILE_MODIFIED_BY, REL_REQUEST_TO_EXCEPTION
+
+    graph = EvidenceGraph()
+    exc = Evidence.exception(
+        "TypeError",
+        "boom",
+        [Frame(file=Path("app/services/checkout_service.js"), line=4, fn="finalize")],
+    )
+    graph.add_exception_with_frames(exc)
+    graph.add_request("POST", "/api/checkout")
+    request = graph.of_kind("request")[0]
+    graph.link(request.id, REL_REQUEST_TO_EXCEPTION, exc.id)
+    commit = graph.add_commit("bee123", "Change checkout total rounding")
+    node = graph.file_node("app/services/checkout_service.js")
+    node.data.setdefault("commit_strength", {})["bee123"] = 1.0
+    graph.link(node.id, REL_FILE_MODIFIED_BY, commit.id)
+
+    top = DetectiveEngine(git=None).investigate(graph)[0]
+    assert top.next_steps[0] == "Reproduce POST /api/checkout"
+    assert "Run: git show bee123" in top.next_steps
+    assert any("regression test" in step for step in top.next_steps)
 
 
 def test_timeline_build_and_summary():

@@ -70,6 +70,25 @@ class DetectiveEngine:
                     entry["score"] += base * 0.5
                 entry["files"].append(path)
 
+        symbol = self._missing_symbol(graph)
+        if symbol and getattr(self.git, "available", False):
+            for info in self.git.recent_commits(20):
+                sha = info["sha"]
+                if self.git.diff_removes_symbol(sha, symbol):
+                    entry = hits.setdefault(
+                        sha,
+                        {
+                            "message": commits.get(sha).data["message"] if sha in commits else sha,
+                            "score": 0.0,
+                            "reasons": [],
+                            "files": [],
+                            "lines": [],
+                        },
+                    )
+                    entry["score"] += 1.3
+                    entry["reasons"].append(
+                        f"Commit {sha[:10]} removes '{symbol}' (the missing symbol in the error)"
+                    )
         max_score = max((entry["score"] for entry in hits.values()), default=0.0)
         hypotheses: list[Hypothesis] = []
         for sha, entry in hits.items():
@@ -90,9 +109,15 @@ class DetectiveEngine:
                 confidence = round(min(0.99, 0.3 + 0.6 * (entry["score"] / max_score)), 2)
             files = list(dict.fromkeys(entry["files"]))
             lines = sorted(set(entry["lines"]))
-            next_steps = [f"Inspect commit {sha[:10]}"]
+            next_steps = [f"Run: git show {sha[:10]}"]
+            if files:
+                next_steps.append(f"Write a regression test covering {files[0]}")
             if files and lines:
                 next_steps.append(f"Review {files[0]}:{lines[0]}")
+            requests = graph.of_kind("request")
+            if requests:
+                data = requests[0].data
+                next_steps.insert(0, f"Reproduce {data['method']} {data['path']}")
             hypotheses.append(
                 Hypothesis(
                     commit_sha=sha,
@@ -106,6 +131,14 @@ class DetectiveEngine:
             )
         hypotheses.sort(key=lambda hypothesis: hypothesis.score, reverse=True)
         return hypotheses[:limit]
+
+    @staticmethod
+    def _missing_symbol(graph: EvidenceGraph) -> str | None:
+        for exception in graph.exceptions():
+            symbol = exception.data.get("missing_symbol")
+            if symbol:
+                return symbol
+        return None
 
     @staticmethod
     def _extract_keywords(graph: EvidenceGraph) -> set[str]:

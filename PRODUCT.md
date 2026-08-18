@@ -191,6 +191,13 @@ The zoo pass-rate is the single number we optimize. Everything else is plumbing.
 
 Ordering note: the harness came first because every later item is proven against it.
 
+## Sprint 2 (done)
+
+- **Zoo 10 → 14 scenarios** — added: removed-function API break (JS), DB deadlock, DB NOT NULL violation, Laravel request + HTTP context. **14/14 passing.**
+- **Missing-symbol diff analysis** (`removed_function` drove it): error messages that name a missing symbol (`X is not a function`, `has no attribute 'X'`, `'X' is not defined`, `Call to undefined method`) now trigger a scan of recent commits' diffs; a commit that deleted the symbol's definition/export gets the strongest deterministic signal (1.3) with an explicit reason. This fixes the multi-file-refactor class where the failing call site blames an innocent commit.
+- **Actionable NEXT INVESTIGATION**: hypothesis steps now say `Run: git show <sha>`, `Write a regression test covering <file>`, and `Reproduce <METHOD> <path>` when request context is known.
+- Fixed a confidence-consistency bug: `max_score` was computed before the symbol boost, letting a boosted entry saturate at 99%; it's now computed after.
+
 ---
 
 ## How to work through this plan

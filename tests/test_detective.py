@@ -31,7 +31,7 @@ def test_ranks_blamed_commit_first():
     assert any("modified by commit" in reason for reason in top.reasons)
     assert any("duplicate" in reason or "retry" in reason for reason in top.reasons)
     assert 0 < top.confidence <= 0.99
-    assert top.next_steps[0].startswith("Inspect commit")
+    assert top.next_steps[0].startswith("Run: git show")
 
 
 def test_ignores_recent_files_without_frames():

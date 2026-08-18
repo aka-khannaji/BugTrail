@@ -48,6 +48,15 @@ REQUEST_PATTERN = re.compile(
 
 TIMESTAMP_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)")
 
+# A missing symbol the error message names, e.g. "discountRate is not a
+# function". Used to find commits whose diff removed that symbol (API break).
+MISSING_SYMBOL_PATTERNS: list[re.Pattern] = [
+    re.compile(r"(\w+) is not a function", re.IGNORECASE),
+    re.compile(r"has no attribute ['\"]([\w.]+)['\"]", re.IGNORECASE),
+    re.compile(r"['\"]([\w]+)['\"] is not defined", re.IGNORECASE),
+    re.compile(r"Call to undefined method [\w\\\\]+::([\w]+)", re.IGNORECASE),
+]
+
 RECENT_COMMIT_WINDOW = 20
 
 # A commit that touched hundreds of files (a branch merge, a giant feature
@@ -133,6 +142,15 @@ def extract_log_lines(error_text: str) -> list[dict]:
             )
             break
     return entries
+
+
+def extract_missing_symbol(error_text: str) -> str | None:
+    """The symbol the error says is missing/not a function, or None."""
+    for pattern in MISSING_SYMBOL_PATTERNS:
+        match = pattern.search(error_text)
+        if match:
+            return match.group(1)
+    return None
 
 
 def extract_missing_dependency(error_text: str) -> str | None:
@@ -278,6 +296,9 @@ class EvidenceEngine:
     def collect_error(self, graph: EvidenceGraph, error_text: str) -> Evidence | None:
         exc = parse_stacktrace(error_text)
         if exc is not None:
+            symbol = extract_missing_symbol(error_text)
+            if symbol:
+                exc.data["missing_symbol"] = symbol
             graph.add_exception_with_frames(exc)
             self.add_database_evidence(graph)
             self.add_log_evidence(graph, error_text)

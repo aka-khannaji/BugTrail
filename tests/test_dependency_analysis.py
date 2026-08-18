@@ -5,6 +5,7 @@ from pathlib import Path
 
 from bugtrail.engines.evidence import (
     extract_missing_dependency,
+    extract_missing_symbol,
     parse_manifest_names,
 )
 
@@ -46,6 +47,20 @@ def test_extract_missing_dependency_import_name():
         )
         == "requests"
     )
+
+
+def test_extract_missing_symbol():
+    assert extract_missing_symbol("TypeError: discountRate is not a function") == "discountRate"
+    assert (
+        extract_missing_symbol("AttributeError: 'BillingService' object has no attribute 'compute'")
+        == "compute"
+    )
+    assert extract_missing_symbol("NameError: name 'render' is not defined") == "render"
+    assert (
+        extract_missing_symbol("Error: Call to undefined method App\\Services\\PaymentService::charge")
+        == "charge"
+    )
+    assert extract_missing_symbol("KeyError: 'hourly'") is None
 
 
 def test_parse_manifest_names_package_json(tmp_path: Path):

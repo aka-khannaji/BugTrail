@@ -3,6 +3,7 @@ only ever talks to a small, duck-typed interface (easy to stub in tests).
 """
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -109,6 +110,30 @@ class GitAdapter:
         except RuntimeError:
             return False
         return bool(plain.strip()) and not ignoring_ws.strip()
+
+    def diff_removes_symbol(self, sha: str, symbol: str) -> bool:
+        """True when the commit's diff removes a definition-like `symbol`.
+
+        Catches the classic API-break regression: the error says something like
+        "discountRate is not a function", and a recent commit deleted the
+        `discountRate` definition or export.
+        """
+        try:
+            out = self._git("show", "--unified=0", "--format=", f"{sha}~1..{sha}")
+        except RuntimeError:
+            return False
+        definition = re.compile(
+            rf"(?:function|def|class)\s+{re.escape(symbol)}"
+            rf"|\b{re.escape(symbol)}\s*="
+            rf"|\.{re.escape(symbol)}\s*="
+            rf"|(?:exports|module\.exports)[^=]*\b{re.escape(symbol)}\b"
+        )
+        for line in out.splitlines():
+            if not line.startswith("-") or line.startswith("---"):
+                continue
+            if symbol in line and definition.search(line):
+                return True
+        return False
 
     @staticmethod
     def _parse_commit(line: str) -> dict[str, Any]:
