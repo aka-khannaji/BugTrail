@@ -17,6 +17,7 @@ EXCEPTION_RE = re.compile(r"\s*(?P<name>[\w\\\\]+):\s*(?P<message>.*)")
 class PHPAdapter(LanguageAdapter):
     name = "php"
     extensions = (".php",)
+    frames_innermost_first = True
 
     @classmethod
     def detect(cls, repo_root: Path) -> bool:

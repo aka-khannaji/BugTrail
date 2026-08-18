@@ -15,6 +15,7 @@ ERROR_RE = re.compile(r"\s*(?P<name>\w+Error):\s*(?P<message>.*)")
 class JavaScriptAdapter(LanguageAdapter):
     name = "javascript"
     extensions = (".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs")
+    frames_innermost_first = True
 
     @classmethod
     def detect(cls, repo_root: Path) -> bool:

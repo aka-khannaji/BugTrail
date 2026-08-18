@@ -60,6 +60,11 @@ class DetectiveEngine:
                         f"Frame line {line} in {path} was last modified by commit {sha[:10]}"
                     )
                     entry["score"] += base
+                    if node.data.get("innermost"):
+                        entry["score"] += 0.1
+                        entry["reasons"].append(
+                            f"{path} is the innermost resolved frame (the actual raise site)"
+                        )
                 else:
                     entry["reasons"].append(f"{path} changed in commit {sha[:10]}")
                     entry["score"] += base * 0.5

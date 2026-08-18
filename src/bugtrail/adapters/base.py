@@ -16,6 +16,10 @@ ErrorParse = tuple[str, str, list[Frame]]  # (name, message, frames) or None
 class LanguageAdapter(ABC):
     name: str
     extensions: tuple[str, ...] = ()
+    # Stack-trace formats disagree on frame order. Python lists frames
+    # outermost-first (the raise site is the LAST frame); V8/Node and
+    # PHP/Laravel list them innermost-first (raise site is the FIRST frame).
+    frames_innermost_first: bool = False
 
     @classmethod
     @abstractmethod

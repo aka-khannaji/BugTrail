@@ -22,13 +22,15 @@ def detect_adapters(repo_root: Path) -> list[type[LanguageAdapter]]:
 
 def parse_stacktrace(text: str) -> Evidence | None:
     """Pick the best-matching language parser. Order matters: most specific first."""
-    best: ErrorParse | None = None
+    best: tuple[type[LanguageAdapter], ErrorParse] | None = None
     for adapter in ADAPTERS:
         parsed = adapter.parse_stacktrace(text)
         if parsed is not None:
-            best = parsed
+            best = (adapter, parsed)
             break
     if best is None:
         return None
-    name, message, frames = best
-    return Evidence.exception(name, message, frames)
+    adapter, (name, message, frames) = best
+    exc = Evidence.exception(name, message, frames)
+    exc.data["frames_innermost_first"] = adapter.frames_innermost_first
+    return exc

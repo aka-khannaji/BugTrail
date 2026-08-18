@@ -293,6 +293,30 @@ class EvidenceEngine:
             for exc in graph.exceptions():
                 graph.link(request.id, REL_REQUEST_TO_EXCEPTION, exc.id)
 
+    def _innermost_resolved_frames(self, graph: EvidenceGraph) -> set[str]:
+        """The deepest frame of each exception chain that maps onto a repo file.
+
+        Stack-trace formats disagree on frame order, so each exception records
+        whether its frames are innermost-first (V8, PHP) or outermost-first
+        (Python). Whichever end is the raise site, its commit wins strength
+        ties: the line where the exception actually propagated is a better
+        lead than an outer call-site frame.
+        """
+        innermost: set[str] = set()
+        for exc in graph.exceptions():
+            resolved: list[str] = []
+            for raw in exc.data.get("frames", []):
+                rel = resolve_repo_path(self.repo_root, Path(raw.get("file", "")))
+                if rel is not None:
+                    resolved.append(rel)
+            if not resolved:
+                continue
+            if exc.data.get("frames_innermost_first"):
+                innermost.add(resolved[0])
+            else:
+                innermost.add(resolved[-1])
+        return innermost
+
     def detect_dependencies(self, graph: EvidenceGraph, error_text: str) -> None:
         """Record dependency evidence for missing-module errors.
 
@@ -368,6 +392,7 @@ class EvidenceEngine:
         """Blame every frame line and note commits that touched those files."""
         if not self.git.available:
             return
+        innermost = self._innermost_resolved_frames(graph)
         for node in graph.of_kind("file"):
             for frame in node.data.get("frames") or []:
                 raw = frame.get("file")
@@ -387,6 +412,8 @@ class EvidenceEngine:
                     graph.link(node.id, REL_FILE_MODIFIED_BY, commit.id)
                     strength = node.data.setdefault("commit_strength", {})
                     strength[blamed["sha"]] = max(strength.get(blamed["sha"], 0.0), 1.0)
+                    if rel in innermost:
+                        node.data["innermost"] = True
         for info in self.git.recent_commits(RECENT_COMMIT_WINDOW):
             sha = info["sha"]
             commit = graph.ensure_commit(
