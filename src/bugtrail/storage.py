@@ -132,6 +132,26 @@ class Storage:
             )
         return results
 
+    def cost_summary(self) -> dict[str, Any]:
+        """Aggregate the cost ledger across all indexed sessions."""
+        tasks: dict[str, dict[str, Any]] = {}
+        session_count = 0
+        with self._connect() as conn:
+            rows = conn.execute("SELECT data FROM sessions").fetchall()
+        for row in rows:
+            session = InvestigationSession.model_validate_json(row[0])
+            session_count += 1
+            for cost in session.costs.rows:
+                entry = tasks.setdefault(
+                    cost.task, {"calls": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
+                )
+                entry["calls"] += 1
+                entry["input_tokens"] += cost.input_tokens
+                entry["output_tokens"] += cost.output_tokens
+                entry["cost_usd"] += cost.cost_usd
+        total = sum(entry["cost_usd"] for entry in tasks.values())
+        return {"session_count": session_count, "tasks": tasks, "total": total}
+
     @staticmethod
     def error_signature(session: InvestigationSession) -> str:
         """Stable fingerprint of the error: name, message, and frame positions."""

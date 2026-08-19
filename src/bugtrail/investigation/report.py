@@ -1,6 +1,8 @@
 """Render an InvestigationSession as a terminal report."""
 from __future__ import annotations
 
+from typing import Any
+
 from bugtrail.ai.cost import format_cost
 from bugtrail.engines.evidence import timeline_summary
 from bugtrail.investigation.session import InvestigationSession
@@ -112,6 +114,31 @@ def render_report(session: InvestigationSession) -> str:
         lines.append(f"{row.description:<{max_width}}")
     lines.append("-" * max_width)
     lines.append(f"{format_cost(session.costs.total):>8}  Total")
+    return "\n".join(lines)
+
+
+def render_cost_summary(summary: dict[str, Any]) -> str:
+    """Render the cross-session cost ledger as a terminal report."""
+    lines: list[str] = []
+    lines.append("BUGTRAIL COST LEDGER")
+    lines.append(BAR)
+    lines.append(f"Investigations: {summary['session_count']}")
+    if not summary["tasks"]:
+        lines.append("No cost entries recorded yet. Run `bugtrail investigate` first.")
+        return "\n".join(lines)
+    lines.append("")
+    lines.append(f"{'task':<28}{'calls':>6}{'input':>9}{'output':>9}{'cost':>12}")
+    lines.append("-" * 64)
+    rows = sorted(
+        summary["tasks"].items(), key=lambda item: (-item[1]["cost_usd"], item[0])
+    )
+    for task, entry in rows:
+        lines.append(
+            f"{task:<28}{entry['calls']:>6}{entry['input_tokens']:>9}"
+            f"{entry['output_tokens']:>9}{format_cost(entry['cost_usd']):>12}"
+        )
+    lines.append("-" * 64)
+    lines.append(f"{'TOTAL':<28}{'':>6}{'':>9}{'':>9}{format_cost(summary['total']):>12}")
     return "\n".join(lines)
 
 

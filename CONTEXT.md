@@ -115,7 +115,9 @@ uv run pytest && uv run ruff check . && uv run python -m tests.zoo
 - **YAGNI** — build nothing ahead of need. Add only what the current task requires.
 - **Deterministic first, AI second** — the evidence graph is built deterministically;
   AI only ranks/reasons over it at the end.
-- **Commit only, never push.** The user owns upstream. No remotes, no pushing.
+- **Commit and push to origin only.** The user owns upstream
+  (origin = https://github.com/being-yash/BugTrail). Pushing is allowed;
+  never force-push or rewrite shared history.
 - **Zoo-gated** — every engine change is proven against tests/zoo.py before
   shipping. New bug class → add a scenario first (red), then fix (green).
 - **Honesty** — never fabricate a root cause or confidence. Report low confidence.
@@ -154,12 +156,14 @@ nil-deref. Plus honest-low cases that must NOT invent a cause.
 
 ## 9. Current status (as of 2026-08-18)
 
-Tests: 84 passing. Lint: ruff clean. Zoo: 22/22. Tree: clean.
+Tests: 86 passing. Lint: ruff clean. Zoo: 22/22. Tree: clean.
 Fresh-machine baseline verified on proot-Debian (2026-08-18): 84/84, ruff clean, 22/22.
 
-Commit history (all local, never pushed):
+Commit history (tracked at origin = https://github.com/being-yash/BugTrail):
 
 ```
+871bce6 Phase 4: bugtrail cost command aggregating the cost ledger across sessions
+ac08d0c Add portable CONTEXT.md session memory + opencode.json
 9541019 Phase 3: CONTRIBUTING.md adapter + zoo contribution docs
 ade1563 Phase 3: SQLite session store, history command, recurrence detection
 3b6eaf1 Phase 3: Go adapter + go.mod manifest support
@@ -187,8 +191,9 @@ history + RECURRING dedupe, CONTRIBUTING.md. Pending: console-script/
 packaging polish (only verifiable on a clean Windows CI runner, blocked on this
 dev machine's corporate security layer).
 
-Phase 4 (not started) — integrations by demand (Sentry / VS Code / other CI),
-bugtrail cost summary when asked. Phase 5 (BugTrail Cloud) — explicitly
+Phase 4 — in progress. Done: `bugtrail cost` ledger summary command (aggregates
+per-task calls/tokens/cost across all sessions). Remaining (demand-gated):
+Sentry / VS Code / other CI integrations. Phase 5 (BugTrail Cloud) — explicitly
 parked until real usage signals.
 
 ## 10. Handoff protocol (working from another PC)
@@ -196,7 +201,9 @@ parked until real usage signals.
 When you move to another machine (or back):
 
 - Bring the repo — copy the whole folder (including .venv if it travels, or
-  recreate with `uv sync`) or use git locally. Remember: never push.
+  recreate with `uv sync`) or use git. Fetch/pull from origin
+  (https://github.com/being-yash/BugTrail); pushing new commits and branches
+  is allowed — never force-push or rewrite shared history.
 - First thing on a fresh machine: `uv sync`, then
   `uv run pytest && uv run ruff check . && uv run python -m tests.zoo` — confirm
   the baseline (84 passing / 22/22) before changing anything.
