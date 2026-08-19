@@ -4,7 +4,7 @@
 
 - **YAGNI — do not build ahead of need.** No speculative features, endpoints, abstractions, or dependencies. Add only what a concrete task requires. Before adding anything, ask: does the current task need it? If not, skip it and note it as a future idea instead.
 - **Deterministic first, AI second** (hard rule). Evidence graph is built deterministically; AI only ranks/reasons over the graph at the end.
-- **Commit only, never push.** The user owns upstream. Never configure remotes or push.
+- **Commit and push to origin only.** The user owns upstream (origin = https://github.com/being-yash/BugTrail). Pushing is allowed; never force-push or rewrite shared history.
 - **AI access strategy:** BYO API key for external providers (OpenAI/Groq/etc. via `base_url` + `BUGTRAIL_API_KEY`) OR free local AI via the `services/bugtrail-ai` FastAPI microservice (tiny open model, $0, no key). Local endpoints must be auto-detected and billed at $0.
 
 ## Repo layout (monorepo)

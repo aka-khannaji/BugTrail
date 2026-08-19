@@ -10,7 +10,7 @@ from bugtrail import __version__
 from bugtrail.adapters.git import GitAdapter
 from bugtrail.config import load_config, write_default_config
 from bugtrail.investigation.pipeline import run_investigation
-from bugtrail.investigation.report import render_report
+from bugtrail.investigation.report import render_cost_summary, render_report
 from bugtrail.storage import Storage
 
 
@@ -149,6 +149,14 @@ def history(limit: int = typer.Option(20, "--limit", help="How many sessions to 
         confidence = f"  {item['top_confidence'] * 100:.0f}%" if item["top_confidence"] else ""
         print(f"{item['created_at']}  {exc:<28} {top[:60]}{confidence}")
         print(f"      {item['id']}  {item['repo_root']}")
+
+
+@app.command()
+def cost() -> None:
+    """Show the cost ledger aggregated across all investigations."""
+    root = _repo_root()
+    summary = Storage(root).cost_summary()
+    print(render_cost_summary(summary))
 
 
 # -- helpers -------------------------------------------------------------
