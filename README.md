@@ -12,7 +12,7 @@ leave your machine).
 
 ```bash
 # 1. Install (no account needed)
-pip install BugTrail
+pip install getbugtrail
 # pre-publication: pip install "bugtrail @ git+https://github.com/aka-khannaji/BugTrail.git"
 
 # 2. Point BugTrail at your repo
@@ -136,14 +136,15 @@ uv run pytest              # or: python -m pytest
 uv run ruff check .        # or: python -m ruff check .
 ```
 
-To publish to PyPI (making `pip install BugTrail` resolve to this package):
+To publish to PyPI (making `pip install getbugtrail` resolve to this package):
 
 ```bash
-uv build                   # builds dist/bugtrail-*.whl + sdist
+uv build                   # builds dist/getbugtrail-*.whl + sdist
 uv publish                 # needs PYPI_TOKEN env var (pypi.org API token)
 ```
 
-The `bugtrail` name is currently free on PyPI.
+Published under the name `getbugtrail` (the bare name `bugtrail` is blocked on
+PyPI by a similar-name rule against the existing `bug-trail`).
 
 Layout: `src/bugtrail/` is the core (evidence graph, adapters, deterministic engine, AI
 provider, CLI); `services/bugtrail-ai/` is the optional local-AI microservice;

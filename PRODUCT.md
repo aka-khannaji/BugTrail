@@ -39,7 +39,7 @@ another Sentry clone.
 3. **Dogfooded on ≥ 2 non-trivial external repos** with genuinely new bugs solved
    (People-Portal counts as one; we pick a second).
 4. Deterministic quality holds with AI off (A/B: zoo pass-rate with `--no-ai` ≈ with AI).
-5. `bugtrail` installs anywhere (`pip install "bugtrail @ git+…"`) and the console
+5. `bugtrail` installs anywhere (`pip install getbugtrail`) and the console
    script works on CI-clean runners.
 
 ## 3. Strategic pillars (the moat)

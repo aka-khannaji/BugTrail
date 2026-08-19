@@ -152,6 +152,7 @@ nil-deref. Plus honest-low cases that must NOT invent a cause.
 ## 9. Current status (as of 2026-08-18)
 
 - **Tests:** 84 passing. **Lint:** ruff clean. **Zoo:** 22/22. **Tree:** clean.
+- **Published on PyPI as `getbugtrail` 0.1.0** (2026-08-18) — `pip install getbugtrail`; the bare `bugtrail` name is blocked by PyPI's similar-name rule against the existing `bug-trail`. Console command and import stay `bugtrail`.
 - **Fresh-machine baseline verified on proot-Debian (2026-08-18):** 84/84, ruff clean, 22/22.
 - **Commit history (all local, never pushed):**
   ```

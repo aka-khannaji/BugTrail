@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "bugtrail"
+name = "getbugtrail"
 version = "0.1.0"
 description = "Find the likely root cause of bugs by connecting runtime errors with code, Git history, dependencies, and database evidence."
 readme = "README.md"
