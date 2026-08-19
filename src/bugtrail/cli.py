@@ -107,7 +107,7 @@ def investigate(
         if config.ai_enabled and not session.ai_summary:
             print(
                 "\nTip: AI is configured but unreachable. Start the local service "
-                "(`docker run -p 8000:8000 ghcr.io/OWNER/bugtrail-ai:latest`) or "
+                "(`docker run -p 8000:8000 ghcr.io/aka-khannaji/bugtrail-ai:latest`) or "
                 "check your BUGTRAIL_API_KEY / base_url.",
                 file=sys.stderr,
             )

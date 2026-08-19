@@ -175,8 +175,7 @@ The zoo pass-rate is the single number we optimize. Everything else is plumbing.
 2. **Language order after Go** — Java vs Rust vs Ruby next? (Not needed until Phase 3.)
 3. **Integration priority** (Phase 4) — Sentry first, or VS Code, or CI variant?
    Decide when Phase 3 lands.
-4. **Public identity** — fill `OWNER/bugtrail` placeholders (README, action, CI,
-   Docker image) when we're ready to publish.
+4. **Public identity** — placeholders filled with the real repo (`aka-khannaji/BugTrail`); done as part of the PyPI publish (2026-08-18).
 5. **Monetization timing** — parked at Phase 5; revisit on real usage signals.
 
 ## 10. Immediate backlog (Phase 2, sprint 1 — highest value first)

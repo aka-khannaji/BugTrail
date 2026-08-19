@@ -13,7 +13,7 @@ leave your machine).
 ```bash
 # 1. Install (no account needed)
 pip install BugTrail
-# pre-publication: pip install "bugtrail @ git+https://github.com/OWNER/bugtrail.git"
+# pre-publication: pip install "bugtrail @ git+https://github.com/aka-khannaji/BugTrail.git"
 
 # 2. Point BugTrail at your repo
 cd your-project
@@ -47,7 +47,7 @@ Three ways to get the AI note — pick one:
 **Free local (recommended, $0, private):** run the bundled microservice with Docker:
 
 ```bash
-docker run -p 8000:8000 ghcr.io/OWNER/bugtrail-ai:latest
+docker run -p 8000:8000 ghcr.io/aka-khannaji/bugtrail-ai:latest
 bugtrail init --base-url http://127.0.0.1:8000/v1 --model qwen2.5-coder-0.5b-instruct
 ```
 
@@ -103,7 +103,7 @@ jobs:
           script: |
             const fs = require('fs');
             fs.writeFileSync('bugtrail-body.txt', context.payload.issue.body || '');
-      - uses: OWNER/bugtrail@main
+      - uses: aka-khannaji/BugTrail@main
         id: investigate
         with:
           error-file: bugtrail-body.txt
@@ -129,7 +129,7 @@ note; without them the action is deterministic-only.
 ## Development
 
 ```bash
-git clone https://github.com/OWNER/bugtrail.git
+git clone https://github.com/aka-khannaji/BugTrail.git
 cd bugtrail
 uv sync                    # or: pip install -e ".[dev]"
 uv run pytest              # or: python -m pytest

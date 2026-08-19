@@ -31,9 +31,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/OWNER/bugtrail"
-Source = "https://github.com/OWNER/bugtrail"
-Issues = "https://github.com/OWNER/bugtrail/issues"
+Homepage = "https://github.com/aka-khannaji/BugTrail"
+Source = "https://github.com/aka-khannaji/BugTrail"
+Issues = "https://github.com/aka-khannaji/BugTrail/issues"
 
 [project.scripts]
 bugtrail = "bugtrail.cli:app"

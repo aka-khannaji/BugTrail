@@ -29,7 +29,7 @@ jobs:
             fs.writeFileSync('bugtrail-body.txt', body);
             return 'ok';
 
-      - uses: OWNER/bugtrail@main
+      - uses: aka-khannaji/BugTrail@main
         id: investigate
         with:
           error-file: bugtrail-body.txt
