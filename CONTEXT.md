@@ -12,7 +12,7 @@ context immediately.
 
 ## 1. What this is
 
-**BugTrail** answers one question: *"Why did this bug happen?"* A developer pastes
+**BugTrail** answers one question: *\"Why did this bug happen?\"* A developer pastes
 an error/stack trace (or points at a commit), and BugTrail produces a ranked,
 evidence-backed root-cause investigation in minutes.
 
@@ -93,6 +93,7 @@ uv run pytest && uv run ruff check . && uv run python -m tests.zoo
 
 - **This dev machine**: Windows, Python 3.14.6, uv. Ports 8000/8001 are taken by the
   user's other projects; **bugtrail-ai runs on 8765** here.
+- Proot-Debian machine (Android/Termux, aarch64): no uv and no `pkg` as root. Baseline runs via a pip venv — `python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'`. glibc wheels work (pydantic-core, ruff); don't use Termux's bionic python (3.14), its Rust wheels fail to build. Commands are `.venv/bin/python -m pytest -q`, `.venv/bin/python -m ruff check .`, `.venv/bin/python -m tests.zoo`. Use Debian `/usr/bin/python3` (3.13) for the venv.
 - **Exe-trampoline flakiness on THIS machine only**: an opaque corporate security
   layer denies some freshly-generated `.exe`s (even uv's own `pytest.exe`). Not a
   packaging bug — `pip install .` + `python -m bugtrail` work in clean venvs, and CI
@@ -104,7 +105,7 @@ uv run pytest && uv run ruff check . && uv run python -m tests.zoo
   `uv run uvicorn app.main:app --port 8000` (first run downloads ~410 MB from HF).
 - Launch detached on this PC (already running, PID varies):
   `services\bugtrail-ai\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8765`.
-  Health: `GET http://127.0.0.1:8765/health` → `{"model":"qwen2.5-coder-0.5b-instruct","loaded":true}`.
+- Health: `GET http://127.0.0.1:8765/health` → `{"model":"qwen2.5-coder-0.5b-instruct","loaded":true}`.
 
 ## 6. Working principles (hard rules, from AGENTS.md)
 
@@ -151,6 +152,7 @@ nil-deref. Plus honest-low cases that must NOT invent a cause.
 ## 9. Current status (as of 2026-08-18)
 
 - **Tests:** 84 passing. **Lint:** ruff clean. **Zoo:** 22/22. **Tree:** clean.
+- **Fresh-machine baseline verified on proot-Debian (2026-08-18):** 84/84, ruff clean, 22/22.
 - **Commit history (all local, never pushed):**
   ```
   9541019 Phase 3: CONTRIBUTING.md adapter + zoo contribution docs
