@@ -24,8 +24,12 @@ class Hypothesis(BaseModel):
 
 
 class DetectiveEngine:
-    def __init__(self, git) -> None:
+    def __init__(self, git, commit_window: int = 20) -> None:
         self.git = git
+        # Mirrors EvidenceEngine.commit_window: how many recent commits the
+        # missing-symbol diff scan considers. -1 (deep scan) is capped here to
+        # keep the per-commit diff scan bounded.
+        self.commit_window = commit_window
 
     def investigate(
         self, graph: EvidenceGraph, limit: int = 5, require_frames: bool = True
@@ -72,7 +76,8 @@ class DetectiveEngine:
 
         symbol = self._missing_symbol(graph)
         if symbol and getattr(self.git, "available", False):
-            for info in self.git.recent_commits(20):
+            scan_depth = self.commit_window if self.commit_window > 0 else 200
+            for info in self.git.recent_commits(scan_depth):
                 sha = info["sha"]
                 if self.git.diff_removes_symbol(sha, symbol):
                     entry = hits.setdefault(

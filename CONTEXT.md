@@ -16,7 +16,8 @@ context immediately.
 an error/stack trace (or points at a commit), and BugTrail produces a ranked,
 evidence-backed root-cause investigation in minutes.
 
-- CLI-first Python tool (`bugtrail init` / `investigate` / `report` / `history`).
+- CLI-first Python tool (`bugtrail init` / `investigate` / `report` / `history` /
+  `recent`).
 - **Deterministic first, AI second** (hard rule): evidence is collected into a graph
   and ranked by rules; an optional LLM only reasons over that graph at the end.
 - Free local AI via `services/bugtrail-ai` (tiny Qwen2.5-Coder model, $0, no key),

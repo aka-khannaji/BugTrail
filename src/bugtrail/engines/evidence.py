@@ -308,9 +308,12 @@ def _json_object(text: str, *keys: str) -> dict:
 
 
 class EvidenceEngine:
-    def __init__(self, repo_root: Path, git):
+    def __init__(self, repo_root: Path, git, commit_window: int = RECENT_COMMIT_WINDOW):
         self.repo_root = repo_root
         self.git = git
+        # How many recent commits the global scan considers. -1 means "deep":
+        # skip the (expensive) global loop and lean on per-file history instead.
+        self.commit_window = commit_window
 
     def collect_error(self, graph: EvidenceGraph, error_text: str) -> Evidence | None:
         exc = parse_stacktrace(error_text)
@@ -333,14 +336,15 @@ class EvidenceEngine:
             for exc in graph.exceptions():
                 graph.link(request.id, REL_REQUEST_TO_EXCEPTION, exc.id)
 
-    def attach_file_history(self, graph: EvidenceGraph, frame_files: set[str]) -> None:
+    def attach_file_history(self, graph: EvidenceGraph, frame_files: set[str], depth: int = 5) -> None:
         """Give recent commits that touched a frame file a modest score.
 
         Used only when exact-line blame for that file is unreliable — a later
         cosmetic reformat masked the line, or the line is not blamable. The
         true culprit may then sit outside the recent-commit window, so a few
         commits from the file's own history are surfaced as suspects: weaker
-        than a direct blame, stronger than a random change.
+        than a direct blame, stronger than a random change. A deep scan
+        (``--all``) raises the per-file depth so old culprits still surface.
         """
         if not frame_files:
             return
@@ -348,7 +352,7 @@ class EvidenceEngine:
         if file_history is None:
             return
         for rel in frame_files:
-            for info in file_history(rel, 5):
+            for info in file_history(rel, depth):
                 node = graph.file_node(rel)
                 commit = graph.ensure_commit(
                     info["sha"],
@@ -494,23 +498,25 @@ class EvidenceEngine:
                         unreliable_blame.discard(rel)
                 else:
                     unreliable_blame.add(rel)
-        self.attach_file_history(graph, resolved_frame_files & unreliable_blame)
-        for info in self.git.recent_commits(RECENT_COMMIT_WINDOW):
-            sha = info["sha"]
-            commit = graph.ensure_commit(
-                sha, info["message"], author=info["author"], date=info["date"]
-            )
-            if len(info.get("parents") or []) > 1:
-                commit.data["merge"] = True
-                continue
-            cosmetic = bool(getattr(self.git, "is_whitespace_only", None) and self.git.is_whitespace_only(sha))
-            base = 0.1 if cosmetic else 0.4
-            for index, rel in enumerate(self.git.changed_files(sha)):
-                node = graph.file_node(rel)
-                if cosmetic:
-                    commit.data["cosmetic"] = True
-                graph.link(node.id, REL_FILE_MODIFIED_BY, commit.id)
-                if index >= MAX_FILES_SCORED_PER_COMMIT:
+        if self.commit_window > 0:
+            for info in self.git.recent_commits(self.commit_window):
+                sha = info["sha"]
+                commit = graph.ensure_commit(
+                    sha, info["message"], author=info["author"], date=info["date"]
+                )
+                if len(info.get("parents") or []) > 1:
+                    commit.data["merge"] = True
                     continue
-                strength = node.data.setdefault("commit_strength", {})
-                strength[sha] = max(strength.get(sha, 0.0), base)
+                cosmetic = bool(getattr(self.git, "is_whitespace_only", None) and self.git.is_whitespace_only(sha))
+                base = 0.1 if cosmetic else 0.4
+                for index, rel in enumerate(self.git.changed_files(sha)):
+                    node = graph.file_node(rel)
+                    if cosmetic:
+                        commit.data["cosmetic"] = True
+                    graph.link(node.id, REL_FILE_MODIFIED_BY, commit.id)
+                    if index >= MAX_FILES_SCORED_PER_COMMIT:
+                        continue
+                    strength = node.data.setdefault("commit_strength", {})
+                    strength[sha] = max(strength.get(sha, 0.0), base)
+        depth = 200 if self.commit_window < 0 else 5
+        self.attach_file_history(graph, resolved_frame_files & unreliable_blame, depth=depth)

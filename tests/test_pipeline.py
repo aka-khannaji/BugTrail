@@ -6,6 +6,51 @@ from bugtrail.config import default_config, load_config, write_default_config
 from bugtrail.storage import Storage
 
 
+def test_commit_window_threads_into_evidence(tmp_path: Path):
+    from bugtrail.investigation.pipeline import run_investigation
+
+    (tmp_path / "app.js").write_text("module.exports = {};\n", encoding="utf-8")
+    calls: dict[str, int] = {}
+
+    class StubGit:
+        available = True
+
+        def recent_commits(self, count):
+            calls["count"] = count
+            return []
+
+        def blame_line(self, file, line):
+            return None
+
+        def changed_files(self, sha):
+            return []
+
+        def is_whitespace_only(self, sha):
+            return False
+
+        def file_history(self, file, count):
+            calls["depth"] = count
+            return []
+
+        def diff_removes_symbol(self, sha, symbol):
+            return False
+
+    error_text = "TypeError: boom\n    at app.js:1:1\n"
+
+    run_investigation(
+        repo_root=tmp_path, error_text=error_text, git=StubGit(), allow_ai=False, commit_window=50
+    )
+    assert calls["count"] == 50
+    assert calls["depth"] == 5
+
+    calls.clear()
+    run_investigation(
+        repo_root=tmp_path, error_text=error_text, git=StubGit(), allow_ai=False, commit_window=-1
+    )
+    assert "count" not in calls
+    assert calls["depth"] == 200
+
+
 class FakeGit:
     available = True
     repo_root: Path | None = None

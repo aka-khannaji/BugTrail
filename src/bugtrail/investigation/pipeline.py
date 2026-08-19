@@ -44,6 +44,7 @@ def run_investigation(
     config: BugTrailConfig | None = None,
     git: GitAdapter | None = None,
     allow_ai: bool = True,
+    commit_window: int = 20,
 ) -> InvestigationSession:
     config = config or load_config(repo_root)
     git = git or GitAdapter.discover(repo_root)
@@ -53,7 +54,7 @@ def run_investigation(
         ledger.record_deterministic(task)
 
     graph = EvidenceGraph()
-    engine = EvidenceEngine(repo_root, git)
+    engine = EvidenceEngine(repo_root, git, commit_window=commit_window)
     exc = engine.collect_error(graph, error_text) if error_text else None
     engine.attach_git(graph)
 
@@ -80,7 +81,7 @@ def run_investigation(
             "Nothing to investigate: provide error text (--error or stdin) or --commit."
         )
 
-    detective = DetectiveEngine(git)
+    detective = DetectiveEngine(git, commit_window=commit_window)
     hypotheses = detective.investigate(graph, require_frames=commit_head is None)
 
     ai_summary = ""

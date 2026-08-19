@@ -70,6 +70,12 @@ def investigate(
     commit: str | None = typer.Option(
         None, "--commit", "-c", help="Investigate around a specific commit instead of an error."
     ),
+    window: int | None = typer.Option(
+        None, "--window", "-w", help="Recent-commit scan depth (default 20)."
+    ),
+    all_history: bool = typer.Option(
+        False, "--all", help="Deep scan: skip the recent-commit loop and scan each frame file's full history."
+    ),
     no_ai: bool = typer.Option(False, "--no-ai", help="Force deterministic-only mode."),
 ) -> None:
     """Investigate a bug: collect evidence, build a graph, rank root causes."""
@@ -81,6 +87,7 @@ def investigate(
             file=sys.stderr,
         )
     error_text = _read_error_text(error)
+    commit_window = -1 if all_history else (window or 20)
 
     try:
         config = load_config(root)
@@ -91,6 +98,7 @@ def investigate(
             config=config,
             git=git or GitAdapter(root),
             allow_ai=not no_ai,
+            commit_window=commit_window,
         )
     except ValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -119,6 +127,26 @@ def investigate(
                 file=sys.stderr,
             )
     print(f"\nSession saved to {path}")
+
+
+@app.command()
+def recent(
+    n: int = typer.Option(10, "--n", "--limit", help="How many commits to list."),
+) -> None:
+    """Show the last N commits as a deploy-time change checklist."""
+    git = GitAdapter.discover(_cwd())
+    if not git.available:
+        print("Error: not inside a git repository.", file=sys.stderr)
+        raise typer.Exit(1)
+    for info in git.recent_commits(n):
+        if len(info.get("parents") or []) > 1:
+            print(f"{info['date'][:10]}  {info['sha'][:8]}  merge  {info['message'][:60]}")
+            continue
+        files = len(git.changed_files(info["sha"]))
+        flags = ""
+        if git.is_whitespace_only(info["sha"]):
+            flags = "  (cosmetic)"
+        print(f"{info['date'][:10]}  {info['sha'][:8]}  {files:>3} files{flags}  {info['message'][:60]}")
 
 
 @app.command()
