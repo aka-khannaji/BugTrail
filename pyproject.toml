@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "getbugtrail"
-version = "0.1.0"
+version = "0.1.2"
 description = "Find the likely root cause of bugs by connecting runtime errors with code, Git history, dependencies, and database evidence."
 readme = "README.md"
 requires-python = ">=3.11"
